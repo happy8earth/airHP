@@ -62,7 +62,7 @@ def run_cycle(config: dict, P_high: float) -> dict:
     eps    = config["hx_recup"]["effectiveness"]
     P_low  = config["P_low"]
     T1     = config["comp"]["T_inlet"]
-    T3_set = config["hx_hotside"]["T_outlet"]
+    T3_set = config["hx_aftercooler"]["T_outlet"]
 
     # ── State 1: Compressor inlet ──────────────────────
     state1 = state_from_TP(T1, P_low, fluid, "State1")

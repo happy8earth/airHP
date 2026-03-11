@@ -3,11 +3,11 @@ cycle,recuperated_brayton,-
 pressure_ratio,1.813419,-
 P_low,101325.00,Pa
 P_high,183744.72,Pa
-Q_cold,12486.3741,W
-W_compressor,37012.6727,W
-W_turbine,12391.8968,W
-W_net,24620.7759,W
+Q_cold,9539.5898,W
+W_compressor,28277.6820,W
+W_turbine,9467.4092,W
+W_net,18810.2728,W
 COP,0.507148,-
-Q_recuperator,50405.2411,W
+Q_recuperator,38509.6042,W
 energy_error,4.43e-07,-
-mass_flow,0.5000,kg/s
+mass_flow,0.3820,kg/s

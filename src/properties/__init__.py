@@ -1,14 +1,16 @@
 """
-properties.py
-─────────────
+properties/
+───────────
 CoolProp 래퍼 및 공용 데이터 타입 정의.
 
 규칙:
-  - CoolProp 직접 호출은 이 파일에서만 허용.
+  - CoolProp 직접 호출은 이 패키지에서만 허용.
   - 온도는 항상 K, 압력은 항상 Pa, 엔탈피/엔트로피는 J/kg, J/kg·K.
+  - 신규 유체 추가 시: src/properties/<fluid>_properties.py 작성 후
+    state_from_TP 분기에 등록.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import CoolProp.CoolProp as CP
 
 
@@ -19,7 +21,7 @@ import CoolProp.CoolProp as CP
 @dataclass
 class ThermodynamicState:
     """모든 상태점의 표준 표현."""
-    fluid: str          # 예: "Air"
+    fluid: str          # 예: "Air", "IM7"
     T:     float        # [K]
     P:     float        # [Pa]
     h:     float        # [J/kg]
@@ -46,8 +48,8 @@ class ComponentResult:
     부호 규칙 (열역학 제1법칙 기준):
       W_dot > 0 : 시스템이 외부로부터 일을 받음  → 압축기
       W_dot < 0 : 시스템이 외부로 일을 함        → 터빈
-      Q_dot > 0 : 시스템이 외부로 열을 방출       → Hot HX
-      Q_dot < 0 : 시스템이 외부로부터 열을 받음   → Cold HX
+      Q_dot < 0 : 시스템이 외부로 열을 방출       → Aftercooler
+      Q_dot > 0 : 시스템이 외부로부터 열을 받음   → Load HX
 
     에너지 평형: ΣW_dot + ΣQ_dot ≈ 0
     """
@@ -58,8 +60,11 @@ class ComponentResult:
 
 
 # ─────────────────────────────────────────────
-# CoolProp 래퍼
+# CoolProp 래퍼 (Air, N2, He 등)
 # ─────────────────────────────────────────────
+
+_COOLPROP_FLUIDS = {"Air", "N2", "He", "Ar", "CO2"}   # 필요 시 추가
+
 
 def _get_h_s(fluid: str, input1: str, val1: float,
              input2: str, val2: float) -> tuple[float, float]:
@@ -71,7 +76,13 @@ def _get_h_s(fluid: str, input1: str, val1: float,
 
 def state_from_TP(T_K: float, P_Pa: float,
                   fluid: str = "Air", label: str = "") -> ThermodynamicState:
-    """온도·압력으로 상태점 계산."""
+    """온도·압력으로 상태점 계산.
+
+    CoolProp 유체(Air 등)와 테이블 기반 유체(IM7 등) 모두 지원.
+    """
+    if fluid == "IM7":
+        from properties.im7_properties import state_from_TP as _im7_state
+        return _im7_state(T_K, P_Pa, label=label)
     h, s = _get_h_s(fluid, "T", T_K, "P", P_Pa)
     return ThermodynamicState(fluid=fluid, T=T_K, P=P_Pa, h=h, s=s, label=label)
 

@@ -19,16 +19,23 @@ CoolProp 라이브러리를 통해 실제 유체 물성을 반영하고, 각 구
 
 ### 1.2 설계 입력 조건
 
-| 파라미터 | 기본값 | 단위 |
-|---|---|---|
-| 냉매 | Air (CoolProp) | - |
-| 질량 유량 | 0.5 | kg/s |
-| 터빈 출구 온도 | −100 | °C |
-| 압축기 등엔트로피 효율 | 0.75 | - |
-| 터빈 등엔트로피 효율 | 0.80 | - |
-| 리큐퍼레이터 효율 (회수 사이클) | 0.80 | - |
+| 파라미터 | YAML 키 | 기본값 | 단위 |
+|---|---|---|---|
+| 냉매 | `fluid` | Air | - |
+| 질량 유량 | `mass_flow` | 0.5 | kg/s |
+| 저압 | `P_low` | 101325 | Pa |
+| 압축기 등엔트로피 효율 | `comp.eta_isen` | 0.75 | - |
+| 압축기 입구 온도 | `comp.T_inlet` | 298.15 | K |
+| 터빈 등엔트로피 효율 | `turbine.eta_isen` | 0.80 | - |
+| 터빈 출구 목표 온도 | `turbine.T_outlet_target` | 173.15 | K |
+| Aftercooler 출구 온도 | `hx_aftercooler.T_outlet` | 298.15 | K |
+| Aftercooler 압손 | `hx_aftercooler.dP` | 0 | Pa |
+| Load HX 압손 | `hx_load.dP` | 0 | Pa |
+| Recuperator 효율 (회수 사이클) | `hx_recup.effectiveness` | 0.80 | - |
+| Recuperator 고압측 압손 | `hx_recup.dP_hot` | 0 | Pa |
+| Recuperator 저압측 압손 | `hx_recup.dP_cold` | 0 | Pa |
 
-> **Note:** 터빈 출구 온도(−100 °C)는 냉동 부하가 흡수되는 저온 단(cold end)의 설계 조건이다.
+> **Note:** `turbine.T_outlet_target`(−100 °C)는 냉동 부하가 흡수되는 저온 단(cold end)의 설계 조건이다. `pressure_ratio: null` 설정 시 이 조건을 만족하는 압력비를 `brentq`로 자동 역산한다.
 
 ---
 
@@ -39,13 +46,13 @@ CoolProp 라이브러리를 통해 실제 유체 물성을 반영하고, 각 구
 #### 사이클 구성도
 
 ```
-  State 1 ──[Compressor]──► State 2 ──[Hot HX]──► State 3
-  (C-in, 저압)               (C-out, 고압)           (T-in, 고압, 냉각)
-       ▲                                                    │
-       │                                              [Turbine]
-       │                                                    │
-  State 4 ◄──[Cold HX]────────────────────────────── State 4
-  (T-out, 저압, 극저온 = −100 °C)          ← 냉동 부하 흡수 →
+  State 1 ──[Compressor]──► State 2 ──[Aftercooler]──► State 3
+  (C-in, 저압)               (C-out, 고압)               (T-in, 고압, 냉각)
+       ▲                                                        │
+       │                                                  [Turbine]
+       │                                                        │
+  State 4 ◄──[Load HX]──────────────────────────────── State 4
+  (T-out, 저압, 극저온 = −100 °C)              ← 냉동 부하 흡수 →
 ```
 
 #### 상태점 정의
@@ -54,7 +61,7 @@ CoolProp 라이브러리를 통해 실제 유체 물성을 반영하고, 각 구
 |---|---|---|
 | **State 1** | 압축기 입구 | 저압, 상온 |
 | **State 2** | 압축기 출구 | 고압, 고온 |
-| **State 3** | Hot HX 출구 = 터빈 입구 | 고압, 상온으로 냉각 |
+| **State 3** | Aftercooler 출구 = 터빈 입구 | 고압, 상온으로 냉각 |
 | **State 4** | 터빈 출구 | 저압, 극저온 (**설계 조건: −100 °C**) |
 
 #### 열역학적 과정
@@ -62,9 +69,9 @@ CoolProp 라이브러리를 통해 실제 유체 물성을 반영하고, 각 구
 | 과정 | 구간 | 설명 |
 |---|---|---|
 | 1 → 2 | 압축기 | 비등엔트로피 압축 (η_c 적용) |
-| 2 → 3 | Hot HX | 등압 냉각 (고온 열 방출) |
+| 2 → 3 | Aftercooler (`hx_aftercooler`) | 등압 냉각 (고온 열 방출) |
 | 3 → 4 | 터빈 | 비등엔트로피 팽창 (η_t 적용) |
-| 4 → 1 | Cold HX | 등압 가열 (냉동 부하 흡수) |
+| 4 → 1 | Load HX (`hx_load`) | 등압 가열 (냉동 부하 흡수) |
 
 ---
 
@@ -75,17 +82,17 @@ CoolProp 라이브러리를 통해 실제 유체 물성을 반영하고, 각 구
 #### 사이클 구성도
 
 ```
-  State 1 ──[Compressor]──► State 2 ──[Hot HX]──► State 3
-  (C-in, 저압)               (C-out, 고압)           (고압, 상온)
-       ▲                                                    │
-       │                                          [Recuperator hot]
-       │                                                    │
-  State 6 ◄──[Cold HX]──── State 5 ◄──[Turbine]──── State 4
-  (저압, Cold HX 입구)      (T-out, 극저온)           (T-in, 고압, 예냉)
+  State 1 ──[Compressor]──► State 2 ──[Aftercooler]──► State 3
+  (C-in, 저압)               (C-out, 고압)               (고압, 상온)
+       ▲                                                        │
+       │                                            [Recuperator hot]
+       │                                                        │
+  State 6 ◄──[Load HX]──── State 5 ◄──[Turbine]──── State 4
+  (저압, Load HX 입구)      (T-out, 극저온)            (T-in, 고압, 예냉)
        │                        │
-  [Recuperator cold]         (냉동 부하 흡수: Cold HX)
+  [Recuperator cold]         (냉동 부하 흡수: Load HX)
        │
-  State 6 → State 1 (Cold HX 출구 = Compressor 입구)
+  State 6 → State 1 (Load HX 출구 = Compressor 입구)
 ```
 
 #### 상태점 정의
@@ -94,21 +101,21 @@ CoolProp 라이브러리를 통해 실제 유체 물성을 반영하고, 각 구
 |---|---|---|
 | **State 1** | 압축기 입구 | 저압, 상온 |
 | **State 2** | 압축기 출구 | 고압, 고온 |
-| **State 3** | Hot HX 출구 | 고압, 상온 (= Recuperator hot 입구) |
+| **State 3** | Aftercooler 출구 | 고압, 상온 (= Recuperator hot 입구) |
 | **State 4** | Recuperator hot 출구 = 터빈 입구 | 고압, 예냉 상태 |
 | **State 5** | 터빈 출구 | 저압, 극저온 (**설계 조건: −100 °C**) |
-| **State 6** | Recuperator cold 출구 = Cold HX 입구 | 저압, 예열 상태 |
+| **State 6** | Recuperator cold 출구 = Load HX 입구 | 저압, 예열 상태 |
 
 #### 열역학적 과정
 
 | 과정 | 구간 | 설명 |
 |---|---|---|
 | 1 → 2 | 압축기 | 비등엔트로피 압축 |
-| 2 → 3 | Hot HX | 등압 냉각 (고온 열 방출) |
-| 3 → 4 | Recuperator hot | 등압 예냉 (고압 스트림) |
+| 2 → 3 | Aftercooler (`hx_aftercooler`) | 등압 냉각 (고온 열 방출) |
+| 3 → 4 | Recuperator hot (`hx_recup`) | 등압 예냉 (고압 스트림) |
 | 4 → 5 | 터빈 | 비등엔트로피 팽창 |
-| 5 → 6 | Recuperator cold | 등압 예열 (저압 스트림) |
-| 6 → 1 | Cold HX | 등압 가열 (냉동 부하 흡수) |
+| 5 → 6 | Recuperator cold (`hx_recup`) | 등압 예열 (저압 스트림) |
+| 6 → 1 | Load HX (`hx_load`) | 등압 가열 (냉동 부하 흡수) |
 
 ---
 
@@ -168,8 +175,8 @@ $$\dot{W}_t = \dot{m} \cdot (h_\text{out} - h_\text{in}) \quad [W,\ \text{음수
 
 $$\dot{Q} = \dot{m} \cdot (h_\text{out} - h_\text{in}) \quad [W]$$
 
-- Hot HX: $\dot{Q} < 0$ (유체 방열)
-- Cold HX: $\dot{Q} > 0$ (유체 흡열 = 냉동 능력)
+- Aftercooler (`hx_aftercooler`): $\dot{Q} < 0$ (유체 방열)
+- Load HX (`hx_load`): $\dot{Q} > 0$ (유체 흡열 = 냉동 능력)
 
 > **향후 확장**: ε-NTU 방법 또는 UA·LMTD 방법으로 교체 예정 ([todolist.md](../todolist.md) 참조)
 
@@ -204,7 +211,7 @@ $$\sum \dot{W} + \sum \dot{Q} = \sum \dot{m}(h_\text{out} - h_\text{in}) = 0 \qu
 ### 4.1 기본 전략
 
 `pressure_ratio: null` 설정 시 scipy `brentq`로 역산.
-**목적**: 터빈 출구 온도 = `T_turbine_outlet` (기본: 173.15 K = −100 °C)
+**목적**: 터빈 출구 온도 = `turbine.T_outlet_target` (기본: 173.15 K = −100 °C)
 
 ### 4.2 Simple Brayton 역산
 
@@ -290,8 +297,8 @@ airHP/
 | `components/compressor.py` | 압축기: in → out_s (이상) → out (실제) |
 | `components/turbine.py` | 터빈: in → out_s (이상) → out (실제) |
 | `components/hx_base.py` | 등압 HX 공통 로직 |
-| `components/hx_heat_rejection.py` | Hot HX |
-| `components/hx_heat_absorption.py` | Cold HX |
+| `components/hx_heat_rejection.py` | Aftercooler (`hx_aftercooler`) — 고압측 방열 |
+| `components/hx_heat_absorption.py` | Load HX (`hx_load`) — 냉동 부하 흡수 |
 | `components/hx_recuperator.py` | 리큐퍼레이터: ε 기반, 양방향 출력 |
 | `cycles/simple_brayton.py` | SEQUENCE 정의 + `STATE_LABELS` |
 | `cycles/recuperated_brayton.py` | `run_cycle()` + `STATE_LABELS` |
@@ -338,8 +345,8 @@ class ComponentResult:
 |---|---|
 | `W_dot > 0` | 유체가 외부로부터 일을 받음 → 압축기 |
 | `W_dot < 0` | 유체가 외부로 일을 함 → 터빈 |
-| `Q_dot < 0` | 유체가 외부로 열을 방출 → Hot HX |
-| `Q_dot > 0` | 유체가 외부로부터 열을 받음 → Cold HX (냉동 능력) |
+| `Q_dot < 0` | 유체가 외부로 열을 방출 → Aftercooler |
+| `Q_dot > 0` | 유체가 외부로부터 열을 받음 → Load HX (냉동 능력) |
 
 이 규칙 하에서: `ΣW_dot + ΣQ_dot = 0` (사이클 폐루프)
 
@@ -349,8 +356,8 @@ class ComponentResult:
 |---|---|---|
 | 압축기 | `run(state_in, P_out, eta_c, m_dot)` | `ComponentResult` |
 | 터빈 | `run(state_in, P_out, eta_t, m_dot)` | `ComponentResult` |
-| Hot/Cold HX | `run(state_in, T_out, m_dot)` | `ComponentResult` |
-| 리큐퍼레이터 | `run(state_hot_in, state_cold_in, effectiveness, m_dot)` | `tuple[ComponentResult, ComponentResult]` |
+| Aftercooler / Load HX | `run(state_in, T_out, m_dot)` | `ComponentResult` |
+| Recuperator (`hx_recup`) | `run(state_hot_in, state_cold_in, effectiveness, m_dot)` | `tuple[ComponentResult, ComponentResult]` |
 
 ### 6.3 `properties.py` 래퍼
 
@@ -463,4 +470,4 @@ pip install CoolProp scipy numpy matplotlib pyyaml
 
 ---
 
-*Last updated: 2026-03-11 — Recuperated Brayton 추가, 상태 표기 1-4/1-6 체계로 통합, 리큐퍼레이터 모델 설명 추가*
+*Last updated: 2026-03-11 — YAML 계층 구조 리팩토링 반영 (comp/turbine/hx_aftercooler/hx_load/hx_recup), 컴포넌트 명칭 Aftercooler/Load HX 로 통일*

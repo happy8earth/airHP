@@ -29,7 +29,7 @@ def _compressor_kwargs(config: dict, state_in, P_high: float) -> dict:
 
 
 def _hot_hx_kwargs(config: dict, state_in, P_high: float) -> dict:
-    return dict(T_out=config["hx_hotside"]["T_outlet"], m_dot=config["mass_flow"])
+    return dict(T_out=config["hx_aftercooler"]["T_outlet"], m_dot=config["mass_flow"])
 
 
 def _turbine_kwargs(config: dict, state_in, P_high: float) -> dict:

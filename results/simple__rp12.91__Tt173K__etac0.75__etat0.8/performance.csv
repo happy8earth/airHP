@@ -3,10 +3,10 @@ cycle,simple_brayton,-
 pressure_ratio,12.906566,-
 P_low,101325.00,Pa
 P_high,1307757.76,Pa
-Q_cold,62891.6128,W
-W_compressor,214640.7571,W
-W_turbine,61524.1548,W
-W_net,153116.6023,W
+Q_cold,48049.1922,W
+W_compressor,163985.5384,W
+W_turbine,47004.4543,W
+W_net,116981.0841,W
 COP,0.410743,-
-energy_error,0.00e+00,-
-mass_flow,0.5000,kg/s
+energy_error,1.51e-16,-
+mass_flow,0.3820,kg/s
