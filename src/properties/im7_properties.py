@@ -168,3 +168,55 @@ def state_from_TP(T_K: float, P_Pa: float, label: str = "") -> ThermodynamicStat
         s=_IM7.s(T_K),
         label=label,
     )
+
+
+# ─────────────────────────────────────────────
+# 셀프체크 / 인터랙티브 조회
+# ─────────────────────────────────────────────
+
+if __name__ == "__main__":
+    _VALID_RANGE = "data range: -70 ~ 70 C (extrapolated outside)"
+
+    def _print_props(T_K: float) -> None:
+        T_C = T_K - 273.15
+        tag = " [extrapolated]" if not (-70 <= T_C <= 70) else ""
+        print(f"\n  T = {T_K:.2f} K  ({T_C:.2f} C){tag}")
+        print(f"  {'Cp':<8} = {_IM7.Cp(T_K):>10.2f}  J/kg·K")
+        print(f"  {'h':<8} = {_IM7.h(T_K):>10.2f}  J/kg")
+        print(f"  {'s':<8} = {_IM7.s(T_K):>10.4f}  J/kg·K")
+        print(f"  {'rho':<8} = {_IM7.rho(T_K):>10.2f}  kg/m3")
+        print(f"  {'mu':<8} = {_IM7.mu(T_K)*1000:>10.4f}  mPa·s")
+        print(f"  {'k_th':<8} = {_IM7.k_th(T_K)*1000:>10.2f}  mW/m·K")
+
+    print("=== IM-7 Properties Self-Check ===")
+    print(f"({_VALID_RANGE})")
+    print("Enter temperature as  <value> [K|C]  (e.g. '25 C', '298.15 K', '298.15')")
+    print("Press Enter with no input to quit.\n")
+
+    while True:
+        try:
+            raw = input("T> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+        if not raw:
+            break
+
+        parts = raw.split()
+        try:
+            val = float(parts[0])
+        except ValueError:
+            print("  [error] could not parse number.")
+            continue
+
+        unit = parts[1].upper() if len(parts) > 1 else "K"
+        if unit == "C":
+            T_K = val + 273.15
+        elif unit == "K":
+            T_K = val
+        else:
+            print("  [error] unit must be K or C.")
+            continue
+
+        _print_props(T_K)
+
+    print("\nDone.")

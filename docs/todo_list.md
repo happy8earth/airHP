@@ -2,128 +2,91 @@
 
 ## 우선순위 높음
 
-### [x] 0. `src/properties/` 패키지 구조 전환 (선행 조건)
+### [ ] 1. HX 모델 전환: T_out 고정 / ε-NTU → UA·LMTD
 
-**현재 상태**
-`src/properties.py` 단일 파일로 CoolProp 기반 유체(Air 등)만 지원.
-`src/properties/im7_liquid_properties.csv` 가 이미 존재하여 **파일/디렉터리 충돌** 상태.
+**대상**: hx_aftercooler, hx_load, hx_recup (전체 전환)
 
-**목표**
-`properties` 를 패키지로 전환하여 CoolProp 유체 + 테이블 기반 유체를 통합 관리:
+**2차측 유체**: aftercooler = 물(water), hx_load = IM-7, hx_recup = 공기(대칭)
 
+**UA scaling**: 2차측 유량 고정(rated) → 1차측만 scaling
 ```
-src/properties/
-├─ __init__.py              ← 기존 properties.py 내용 이전 + fluid 분기 로직
-├─ im7_properties.py        ← IM-7 테이블 기반 물성 (Task 0-B)
-└─ im7_liquid_properties.csv
+UA = UA_rated × (m_dot / m_dot_rated)^0.8
 ```
 
-`state_from_TP(T, P, fluid, label)` 에서 `fluid` 문자열로 분기:
-- `"Air"`, `"N2"`, `"He"` 등 → CoolProp 호출 (기존 동작 유지)
-- `"IM7"` → `im7_properties` 모듈 호출
+**Catalog rated 값 (YAML 기입 완료)**
+| HX | UA_rated [W/K] | m_dot_rated [kg/s] | T_sec [K] | m_dot_sec [kg/s] |
+|----|---|----|----|----|
+| aftercooler | 870 | 0.382 | 291.15 | 0.38 |
+| hx_load | 1301.01 | 0.382 | 197.65 | 0.827 |
+| hx_recup | 5102.04 | 0.382 | — (대칭) | — |
 
-**변경 파일**
-- `src/properties.py` → `src/properties/__init__.py` 로 이동 (내용 그대로)
-- 기존 import `from properties import ...` 경로 불변 (패키지 `__init__` 이 동일 심볼 export)
-- `cycle_solver.py`, `components/*.py`, `cycles/*.py` import 수정 불필요
-
-**확장성**
-- 향후 PAO, Syltherm 등 추가 시 `src/properties/<fluid>_properties.py` 신규 파일만 추가
+**구조 변화 (핵심)**
+- 기존: `T3`(aftercooler 출구), `T1`(comp 입구) = config 고정값
+- 변경 후: `T3`, `T1` = UA·LMTD 계산 결과 (output)
+- T1 circular dependency → cycle solver 내 **fixed-point iteration** 추가
+  (`T1_guess → run_cycle → T1_new → 반복, 보통 2~3회 수렴`)
 
 ---
 
-### [x] 0-B. IM-7 유체 물성 모듈 (`im7_properties.py`) 구현
+#### [A] YAML 파라미터 교체
 
-**의존**: Task 0 (패키지 전환) 완료 후 진행
+- `hx_aftercooler`: `T_outlet` 제거 → `UA_rated, m_dot_rated, T_secondary, m_dot_secondary`
+- `hx_load`: `UA_rated, m_dot_rated, T_secondary, m_dot_secondary` 추가
+- `hx_recup`: `effectiveness` 제거 → `UA_rated, m_dot_rated`
+- simple_baseline.yaml, recuperated_baseline.yaml 모두 적용
 
-**데이터 소스**
-`src/properties/im7_liquid_properties.csv`
-- 컬럼: T_C, T_K, Tr, P_sat_MPa, rho_liq_kg_m3, mu_liq_mPa_s, nu_liq_mm2_s, Cp_liq_J_kgK, k_liq_mW_mK
-- 유효 범위: −70 ∼ 70°C (Cp, rho, mu, k). −100∼−80°C 및 80∼100°C 행은 빈 셀(NaN)
+---
 
-**구현 단계**
-
-```
-1. CSV 로드 + NaN 처리
-   └─ 유효 데이터만 추출 (dropna per column)
-
-2. 보간 함수 (각 물성 독립적으로)
-   └─ scipy.interpolate.interp1d (kind='linear')
-      + 범위 외: 명시적 linear extrapolation (fill_value 없이 직접 구현)
-      + 외삽 시 경고 없음 (조용히 처리)
-
-3. Cp(T) 다항식 피팅
-   └─ numpy.polyfit(T_K, Cp, deg=2)  ← 데이터가 거의 선형이므로 2차로 충분
-      (Cp ≈ 1030 + 2·(T_C+70) [J/kg·K], 선형에 가까움)
-
-4. h(T) 해석적 적분  [T_ref = 273.15 K, h_ref = 0]
-   └─ Cp = a₀ + a₁T + a₂T²  (T in K)
-      h(T) = a₀(T−T_ref) + ½a₁(T²−T_ref²) + ⅓a₂(T³−T_ref³)
-
-5. s(T) 해석적 적분  [T_ref = 273.15 K, s_ref = 0]
-   └─ s(T) = a₀·ln(T/T_ref) + a₁(T−T_ref) + ½a₂(T²−T_ref²)
-
-6. 단위 변환 (로드 시 1회)
-   └─ k: mW/(m·K) → W/(m·K)  (÷1000)
-      mu: mPa·s   → Pa·s      (÷1000)
-
-7. state_from_TP_im7(T_K, P_Pa, label="") → ThermodynamicState
-   └─ P_Pa 는 인자로 받되 내부 계산에 미사용 (비압축성 액체 가정)
-```
-
-**클래스 인터페이스**
+#### [B] `hx_ua_lmtd.py` — 공용 counter-flow solver 신규 구현
 
 ```python
-class IM7Properties:
-    def h(self, T_K: float) -> float      # [J/kg]
-    def s(self, T_K: float) -> float      # [J/kg·K]
-    def rho(self, T_K: float) -> float    # [kg/m³]
-    def Cp(self, T_K: float) -> float     # [J/kg·K]
-    def mu(self, T_K: float) -> float     # [Pa·s]
-    def k_th(self, T_K: float) -> float   # [W/m·K]  (k는 Python 예약어 회피)
-
-# 모듈 수준 편의 함수 (CoolProp 인터페이스와 동일)
-def state_from_TP(T_K, P_Pa, label="") -> ThermodynamicState
+# src/components/hx_ua_lmtd.py
+def ua_scale(UA_rated, m_dot, m_dot_rated) -> float
+def solve_counterflow(UA, state_hot_in, state_cold_in,
+                      m_dot_hot, m_dot_cold,
+                      fluid_cold="Air") -> (T_hot_out, T_cold_out, Q_dot, LMTD)
+# 내부: brentq on T_hot_out
+# Residual: Q_dot(T_hot_out) - UA * LMTD(T_hot_out) = 0
 ```
-
-**외삽 범위 메모**
-- Load HX 운전 시 IM-7 입구 ≈ −100°C 가능 → 데이터 하한(−70°C) 아래 외삽 발생
-- 선형 외삽이므로 −100°C 에서 Cp ≈ 1030 − 2×30 = **970 J/kg·K** 로 추정됨 (합리적 범위)
 
 ---
 
-### [ ] 1. ε-NTU 모델 적용 — Aftercooler / Load HX
+#### [C] `hx_heat_rejection.py` 리팩터
 
-**현재 상태**
-`hx_heat_rejection.py` (Aftercooler) / `hx_heat_absorption.py` (Load HX) 모두 출구 온도(`T_out`)를 직접 지정.
-실제 열교환기 크기(UA)와 유체 조건으로부터 성능을 계산하지 않음.
+- hot side = working fluid, cold side = 물 (Cp_water ≈ 4186 J/kg·K)
+- `run(state_in, UA_rated, m_dot, m_dot_rated, T_sec, m_dot_sec)` → ComponentResult
 
-**목표**
-NTU–효율 관계식으로 출구 상태를 결정:
+---
 
-```
-ε  = 1 − exp(−NTU)          (한쪽 유체 C_min → ∞, 예: 외기 / 냉매 측)
-NTU = UA / C_min
-T_out = T_in − ε · (T_in − T_secondary)
-```
+#### [D] `hx_heat_absorption.py` 리팩터
 
-또는 두 유체 모두 유한 열용량인 경우 counter-flow ε-NTU:
+- hot side = IM-7 (Cp from im7_properties), cold side = working fluid
+- `run(state_in, UA_rated, m_dot, m_dot_rated, T_sec, m_dot_sec)` → ComponentResult
 
-```
-ε = [1 − exp(−NTU·(1−C_r))] / [1 − C_r·exp(−NTU·(1−C_r))]
-C_r = C_min / C_max
-```
+---
 
-**변경 파일**
-- `src/components/hx_heat_rejection.py` — `run(state_in, UA, T_secondary, m_dot, m_dot_secondary, fluid_secondary)` 로 시그니처 변경
-- `src/components/hx_heat_absorption.py` — 동일
-- `configs/simple_baseline.yaml`, `configs/recuperated_baseline.yaml` — `hx_aftercooler.T_outlet` 대신 `hx_aftercooler.UA`, `hx_aftercooler.T_secondary` 로 교체; `hx_load.UA`, `hx_load.T_secondary` 추가
-- `src/cycles/simple_brayton.py`, `src/cycles/recuperated_brayton.py` — HX 호출부 수정
+#### [E] `hx_recuperator.py` 리팩터
 
-**비고**
-- 1차적으로는 이차 유체(secondary)를 무한 열용량으로 가정(등온)하여 단순화 가능
-- 이차 유체 유량·온도를 파라미터로 받는 구조 권장
-- Recuperator(`hx_recup`)는 이미 ε 기반이므로 변경 불필요
+- `effectiveness` 제거, `UA_rated, m_dot_rated` 사용
+- UA scaling: `UA = UA_rated × (m_dot / m_dot_rated)^0.8` (양측 대칭)
+- `run(state_hot_in, state_cold_in, UA_rated, m_dot, m_dot_rated)` → (result_hot, result_cold)
+
+---
+
+#### [F] cycle solver 업데이트
+
+- `simple_brayton.py`, `recuperated_brayton.py`:
+  - `T3_set` 제거 → aftercooler UA 기반으로 T3 계산
+  - `T_out=T1` 제거 → cold HX UA 기반으로 T1 계산
+  - T1 fixed-point loop 추가 (초기값 = `comp.T_inlet_guess`)
+  - `recuperated_brayton.py` inner brentq residual 수정:
+    ε 기반 `T4 = T3 - ε*(T3-T5)` → UA 기반 `Q(T4) - UA·LMTD(T4) = 0`
+
+---
+
+#### [G] `main.py` 출력 업데이트
+
+- 각 HX별 UA [W/K], LMTD [K], Q_dot [W] 출력 행 추가
 
 ---
 
@@ -136,7 +99,7 @@ C_r = C_min / C_max
 각 HX에 상수 압손 `dP [Pa]` 를 파라미터로 추가:
 
 ```
-P_out = P_in − dP
+P_out = P_in - dP
 ```
 
 사이클 영향:
@@ -156,26 +119,6 @@ P_out = P_in − dP
 - 단, 압손 합산이 클 경우 P_high / P_low 의 정의 재검토 필요:
   - P_low = 압축기 입구 압력 (Load HX 출구) — 압손 반영 시 Load HX 입구 ≠ P_low
   - 향후 2단계에서 각 상태점 압력을 독립 변수로 분리 고려
-
----
-
-### [ ] 3. UA·LMTD 후처리 (post-processing)
-
-**현재 상태**
-ε 기반 리큐퍼레이터와 지정 온도 HX만 있어 실제 열교환기 크기를 계산하지 않음.
-
-**목표**
-시뮬레이션 결과로부터 각 열교환기의 UA 와 LMTD 역산:
-
-```
-UA = Q_dot / LMTD
-LMTD = (ΔT1 − ΔT2) / ln(ΔT1 / ΔT2)
-```
-
-**변경 파일**
-- `src/postprocess/hx_sizing.py` (신규) — `compute_UA(Q_dot, T_hot_in, T_hot_out, T_cold_in, T_cold_out)`
-- `main.py` — 성능 출력 섹션에 UA / LMTD 행 추가
-- `results/*/performance.csv` — UA, LMTD 컬럼 추가
 
 ---
 
@@ -225,6 +168,8 @@ Air 고정 (CoolProp `"Air"` pseudo-pure).
 
 ## 완료됨
 
+- [x] `src/properties/` 패키지 전환 — `properties.py` → `properties/__init__.py`, `fluid` 문자열 분기 (`"IM7"` vs CoolProp)
+- [x] IM-7 물성 모듈 (`im7_properties.py`) — CSV 보간 + 2차 Cp 피팅 + h/s 해석적 적분, 유효범위 −70∼70°C (외삽 지원)
 - [x] Simple Reverse Brayton cycle 4-상태 구현 (1→2→3→4)
 - [x] 상태 표기 정수화 (prime 표기 제거)
 - [x] HX 분리: `hx_base`, `hx_heat_rejection`, `hx_heat_absorption`, `hx_recuperator`
