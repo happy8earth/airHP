@@ -25,19 +25,19 @@ from components import hx_heat_rejection, hx_heat_absorption
 
 
 def _compressor_kwargs(config: dict, state_in, P_high: float) -> dict:
-    return dict(P_out=P_high, eta_c=config["eta_compressor"], m_dot=config["mass_flow"])
+    return dict(P_out=P_high, eta_c=config["comp"]["eta_isen"], m_dot=config["mass_flow"])
 
 
 def _hot_hx_kwargs(config: dict, state_in, P_high: float) -> dict:
-    return dict(T_out=config["T_hot_hx_outlet"], m_dot=config["mass_flow"])
+    return dict(T_out=config["hx_hotside"]["T_outlet"], m_dot=config["mass_flow"])
 
 
 def _turbine_kwargs(config: dict, state_in, P_high: float) -> dict:
-    return dict(P_out=config["P_low"], eta_t=config["eta_turbine"], m_dot=config["mass_flow"])
+    return dict(P_out=config["P_low"], eta_t=config["turbine"]["eta_isen"], m_dot=config["mass_flow"])
 
 
 def _cold_hx_kwargs(config: dict, state_in, P_high: float) -> dict:
-    return dict(T_out=config["T_compressor_inlet"], m_dot=config["mass_flow"])
+    return dict(T_out=config["comp"]["T_inlet"], m_dot=config["mass_flow"])
 
 
 STATE_LABELS = [

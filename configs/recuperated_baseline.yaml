@@ -1,11 +1,25 @@
 cycle: recuperated_brayton     # cycles/ 폴더의 모듈명과 일치
 fluid: Air
 mass_flow: 0.5               # [kg/s]
-T_turbine_outlet: 173.15     # [K]  (-100°C, 터빈 출구 목표 온도)
-eta_compressor: 0.75         # 압축기 등엔트로피 효율 [-]  η_c = (h2s - h1) / (h2 - h1)  [State 1→2]
-eta_turbine: 0.80            # 터빈 등엔트로피 효율    [-]  η_t = (h4 - h5) / (h4 - h5s)  [State 4→5]
-effectiveness: 0.80          # 리큐퍼레이터 효율 ε [-]  ε = (T3 - T4) / (T3 - T5)
 P_low: 101325                # [Pa]  (1 atm)
-T_hot_hx_outlet: 298.15      # [K]  (25°C, State 3 = Hot HX 출구 = Recuperator hot 입구)
-T_compressor_inlet: 298.15   # [K]  (25°C, State 1 = 압축기 입구)
 pressure_ratio: null         # null: scipy 역산, 숫자: 고정값
+
+comp:
+  eta_isen: 0.75             # 등엔트로피 효율 [-]  η_c = (h2s - h1) / (h2 - h1)
+  T_inlet: 298.15            # [K]  (25°C)  State 1 = Cold HX 출구 = 압축기 입구
+
+turbine:
+  eta_isen: 0.80             # 등엔트로피 효율 [-]  η_t = (h4 - h5) / (h4 - h5s)
+  T_outlet_target: 173.15   # [K]  (-100°C)  outer brentq 수렴 목표
+
+hx_hotside:
+  T_outlet: 298.15           # [K]  (25°C)  State 3 = Hot HX 출구 = Recuperator hot 입구
+  dP: 0                      # [Pa]  압력 손실 (0 = 현재 무시)
+
+hx_coldside:
+  dP: 0                      # [Pa]  압력 손실 (0 = 현재 무시)
+
+hx_recup:
+  effectiveness: 0.80        # ε [-]  ε = (T3 - T4) / (T3 - T5)
+  dP_hot: 0                  # [Pa]  고압 스트림 압력 손실 (3→4)
+  dP_cold: 0                 # [Pa]  저압 스트림 압력 손실 (5→6)

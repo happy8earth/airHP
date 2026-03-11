@@ -57,12 +57,12 @@ def run_cycle(config: dict, P_high: float) -> dict:
     """
     fluid  = config["fluid"]
     m_dot  = config["mass_flow"]
-    eta_c  = config["eta_compressor"]
-    eta_t  = config["eta_turbine"]
-    eps    = config["effectiveness"]
+    eta_c  = config["comp"]["eta_isen"]
+    eta_t  = config["turbine"]["eta_isen"]
+    eps    = config["hx_recup"]["effectiveness"]
     P_low  = config["P_low"]
-    T1     = config["T_compressor_inlet"]
-    T3_set = config["T_hot_hx_outlet"]
+    T1     = config["comp"]["T_inlet"]
+    T3_set = config["hx_hotside"]["T_outlet"]
 
     # ── State 1: Compressor inlet ──────────────────────
     state1 = state_from_TP(T1, P_low, fluid, "State1")

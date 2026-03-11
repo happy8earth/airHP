@@ -299,10 +299,11 @@ def sweep_rp(cfg_base: dict, save_dir: str,
             ax.legend(fontsize=8)
 
     cycle_name = cfg_base.get("cycle", "simple_brayton")
-    eps_str = (f"  ε={cfg_base['effectiveness']}" if "effectiveness" in cfg_base else "")
+    recup = cfg_base.get("hx_recup", {})
+    eps_str = (f"  ε={recup['effectiveness']}" if "effectiveness" in recup else "")
     fig.suptitle(
-        f"{cycle_name}  |  η_c={cfg_base['eta_compressor']}"
-        f"  η_t={cfg_base['eta_turbine']}{eps_str}",
+        f"{cycle_name}  |  η_c={cfg_base['comp']['eta_isen']}"
+        f"  η_t={cfg_base['turbine']['eta_isen']}{eps_str}",
         fontsize=11)
     fig.tight_layout()
     png_path = os.path.join(save_dir, "cop_vs_rp.png")

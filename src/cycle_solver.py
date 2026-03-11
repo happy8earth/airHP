@@ -31,9 +31,9 @@ from properties import state_from_TP
 def make_result_dir(config: dict) -> str:
     cycle = config["cycle"].replace("_brayton", "")
     rp    = f"rp{config['pressure_ratio']:.2f}"
-    Tt    = f"Tt{int(config['T_turbine_outlet'])}K"
-    etac  = f"etac{config['eta_compressor']}"
-    etat  = f"etat{config['eta_turbine']}"
+    Tt    = f"Tt{int(config['turbine']['T_outlet_target'])}K"
+    etac  = f"etac{config['comp']['eta_isen']}"
+    etat  = f"etat{config['turbine']['eta_isen']}"
     return os.path.join("results", f"{cycle}__{rp}__{Tt}__{etac}__{etat}")
 
 
@@ -44,7 +44,7 @@ def make_result_dir(config: dict) -> str:
 def _run_sequence(cycle_module, config: dict, P_high: float):
     """주어진 P_high 로 SEQUENCE 를 한 바퀴 실행하고 결과 리스트를 반환."""
     state = state_from_TP(
-        config["T_compressor_inlet"],
+        config["comp"]["T_inlet"],
         config["P_low"],
         fluid=config["fluid"],
         label="State1",
@@ -66,7 +66,7 @@ def _find_P_high(cycle_module, config: dict, use_run_cycle: bool) -> float:
     """
     scipy brentq 로 터빈 출구 온도 = T_turbine_outlet 을 만족하는 P_high 탐색.
     """
-    T_target = config["T_turbine_outlet"]
+    T_target = config["turbine"]["T_outlet_target"]
     P_low    = config["P_low"]
 
     def error(P_high):
@@ -152,7 +152,7 @@ def solve(config: dict) -> dict:
         Q_recuperator     = cycle_out.get("Q_recuperator", 0.0)
     else:
         seq_results = _run_sequence(cycle_module, config, P_high)
-        state1 = state_from_TP(config["T_compressor_inlet"], config["P_low"],
+        state1 = state_from_TP(config["comp"]["T_inlet"], config["P_low"],
                                 fluid=config["fluid"], label="State1")
         states = [
             state1,
