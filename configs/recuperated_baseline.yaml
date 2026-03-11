@@ -17,6 +17,7 @@ hx_aftercooler:
   dP: 0                      # [Pa]  압력 손실 (0 = 현재 무시)
 
 hx_load:
+  Q_load: 5000               # [W]  냉동부하 (양수 = 열 흡수)
   dP: 0                      # [Pa]  압력 손실 (0 = 현재 무시)
 
 hx_recup:

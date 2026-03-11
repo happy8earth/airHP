@@ -2,6 +2,20 @@
 
 ## 우선순위 높음
 
+### [x] 0. Recuperated Load HX: Q_load-based outlet
+
+- Goal: use Q_load (refrigeration load) to compute load HX outlet temperature (State 6) instead of fixed T_outlet
+- Q_load: **5 kW** (fixed for baseline)
+- Rationale: with topology recup cold side = 6→1, fixed T_outlet can make T_hot_in <= T_cold_in and break recuperator
+- YAML proposal:
+  - add `hx_load.Q_load` [W]
+  - make `hx_load.T_outlet` optional; define priority if both exist
+- Topology: 3→4 (recup hot), 4→5 (expander), 5→6 (load HX), 6→1 (recup cold)
+- Checks:
+  - sign convention for Q_load (positive = cooling load)
+  - bounds/feasibility for property inversion
+
+
 ### [ ] 1. HX 모델 전환: T_out 고정 / ε-NTU → UA·LMTD
 
 **대상**: hx_aftercooler, hx_load, hx_recup (전체 전환)
@@ -181,3 +195,4 @@ Air 고정 (CoolProp `"Air"` pseudo-pure).
 - [x] docs/modeling_guide.md 전면 업데이트
 - [x] YAML 계층 구조 리팩토링 (comp/turbine/hx_aftercooler/hx_load/hx_recup)
 - [x] 컴포넌트 명칭 통일: Aftercooler (`hx_aftercooler`), Load HX (`hx_load`), Recuperator (`hx_recup`)
+

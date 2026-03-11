@@ -109,3 +109,8 @@ airHP/
    - P–h 다이어그램.
 1. `results/<run>/cop_vs_rp.png`, `cop_vs_rp.csv`  
    - 압력비 스윕 결과.
+
+## Update: Q_load-Based Load HX (Recuperated)
+- Recuperated cycle now computes Load HX outlet (State 6) from `hx_load.Q_load`.
+- `hx_load.T_outlet` is ignored in recuperated mode.
+- Baseline: `hx_load.Q_load = 5000 W` in `configs/recuperated_baseline.yaml`.

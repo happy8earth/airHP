@@ -471,3 +471,14 @@ pip install CoolProp scipy numpy matplotlib pyyaml
 ---
 
 *Last updated: 2026-03-11 — YAML 계층 구조 리팩토링 반영 (comp/turbine/hx_aftercooler/hx_load/hx_recup), 컴포넌트 명칭 Aftercooler/Load HX 로 통일*
+
+---
+
+## 11. Update (Q_load-based Load HX in Recuperated Cycle)
+
+- Recuperated cycle uses **Q_load** to determine Load HX outlet state (State 6).
+- `hx_load.T_outlet` is not used in recuperated mode; State 6 is computed by:
+  - `h6 = h5 + Q_load / m_dot`
+  - `T6` is obtained from `state_from_hP(h6, P_low)`
+- This ensures recuperator cold inlet (State 6) is not arbitrarily fixed and avoids `T_hot_in <= T_cold_in` errors.
+- Baseline: `hx_load.Q_load = 5000 W` in `configs/recuperated_baseline.yaml`.
