@@ -3,6 +3,7 @@ visualize.py
 ────────────
 사용법:
   python visualize.py --config configs/simple_baseline.yaml
+  python visualize.py --config configs/recuperated_baseline.yaml
 
 생성 파일:
   results/{run}/cycle_Ts.png   T-s 선도
@@ -49,49 +50,96 @@ def linear_path(s1, s2, T1, T2, h1, h2, N: int = 30):
     return T, s, h
 
 
+def _annotate_states(ax, states_s, states_T, offsets):
+    """상태점 번호 주석 (1-based)."""
+    ax.scatter([s / 1e3 for s in states_s],
+               [T - 273.15 for T in states_T],
+               color="k", zorder=5, s=50)
+    for i, (sx, Tx, off) in enumerate(zip(states_s, states_T, offsets), start=1):
+        ax.annotate(str(i), (sx / 1e3, Tx - 273.15),
+                    xytext=off, textcoords="offset points",
+                    fontsize=10, fontweight="bold")
+
+
+def _annotate_states_Ph(ax, states_h, states_P, offsets):
+    """P-h 선도 상태점 번호 주석 (1-based)."""
+    ax.scatter([h / 1e3 for h in states_h],
+               [P / 1e3 for P in states_P],
+               color="k", zorder=5, s=50)
+    for i, (hx, Px, off) in enumerate(zip(states_h, states_P, offsets), start=1):
+        ax.annotate(str(i), (hx / 1e3, Px / 1e3),
+                    xytext=off, textcoords="offset points",
+                    fontsize=10, fontweight="bold")
+
+
 # ─────────────────────────────────────────────
 # T-s 선도
 # ─────────────────────────────────────────────
 
-def plot_Ts(out: dict, cfg: dict, save_path: str) -> None:
-    fluid = cfg["fluid"]
-    s1, s2, s2p, s3 = [st.s for st in out["states"]]
-    T1, T2, T2p, T3 = [st.T for st in out["states"]]
+def _plot_Ts_simple(ax, out: dict, cfg: dict) -> None:
+    """Simple Brayton (4 상태) T-s 선도 경로."""
+    fluid  = cfg["fluid"]
     P_low  = cfg["P_low"]
     P_high = out["P_high"]
+    s1, s2, s3, s4 = [st.s for st in out["states"]]
+    T1, T2, T3, T4 = [st.T for st in out["states"]]
 
-    # 각 과정 경로
-    T_c,  s_c,  _ = linear_path(s1,  s2,  T1,  T2,  0, 0)   # 압축기
-    T_hx, s_hx, _ = isobaric_path(T2, T2p, P_high, fluid)    # Hot HX
-    T_t,  s_t,  _ = linear_path(s2p, s3,  T2p, T3,  0, 0)   # 터빈
-    T_cx, s_cx, _ = isobaric_path(T3, T1,  P_low,  fluid)    # Cold HX
+    T_c,  s_c,  _ = linear_path(s1, s2, T1, T2, 0, 0)    # 압축기
+    T_hx, s_hx, _ = isobaric_path(T2, T3, P_high, fluid)  # Hot HX
+    T_t,  s_t,  _ = linear_path(s3, s4, T3, T4, 0, 0)    # 터빈
+    T_cx, s_cx, _ = isobaric_path(T4, T1, P_low,  fluid)  # Cold HX
 
+    ax.plot(s_c  / 1e3, T_c  - 273.15, "b-", lw=1.8, label="Compressor (1→2)")
+    ax.plot(s_hx / 1e3, T_hx - 273.15, "r-", lw=1.8, label="Hot HX (2→3)")
+    ax.plot(s_t  / 1e3, T_t  - 273.15, "g-", lw=1.8, label="Turbine (3→4)")
+    ax.plot(s_cx / 1e3, T_cx - 273.15, "m-", lw=1.8, label="Cold HX (4→1)")
+
+    offsets = [(-18, 5), (5, 5), (5, 5), (5, -12)]
+    _annotate_states(ax, [s1, s2, s3, s4], [T1, T2, T3, T4], offsets)
+
+
+def _plot_Ts_recuperated(ax, out: dict, cfg: dict) -> None:
+    """Recuperated Brayton (6 상태) T-s 선도 경로."""
+    fluid  = cfg["fluid"]
+    P_low  = cfg["P_low"]
+    P_high = out["P_high"]
+    s1, s2, s3, s4, s5, s6 = [st.s for st in out["states"]]
+    T1, T2, T3, T4, T5, T6 = [st.T for st in out["states"]]
+
+    T_c,   s_c,   _ = linear_path(s1, s2, T1, T2, 0, 0)     # 압축기
+    T_hx,  s_hx,  _ = isobaric_path(T2, T3, P_high, fluid)   # Hot HX
+    T_rh,  s_rh,  _ = isobaric_path(T3, T4, P_high, fluid)   # Recuperator hot
+    T_t,   s_t,   _ = linear_path(s4, s5, T4, T5, 0, 0)     # 터빈
+    T_rc,  s_rc,  _ = isobaric_path(T5, T6, P_low,  fluid)   # Recuperator cold
+    T_cx,  s_cx,  _ = isobaric_path(T6, T1, P_low,  fluid)   # Cold HX
+
+    ax.plot(s_c  / 1e3, T_c  - 273.15, "b-",                 lw=1.8, label="Compressor (1→2)")
+    ax.plot(s_hx / 1e3, T_hx - 273.15, "r-",                 lw=1.8, label="Hot HX (2→3)")
+    ax.plot(s_rh / 1e3, T_rh - 273.15, color="darkorange",   lw=1.8, label="Recup hot (3→4)", ls="--")
+    ax.plot(s_t  / 1e3, T_t  - 273.15, "g-",                 lw=1.8, label="Turbine (4→5)")
+    ax.plot(s_rc / 1e3, T_rc - 273.15, color="mediumpurple", lw=1.8, label="Recup cold (5→6)", ls="--")
+    ax.plot(s_cx / 1e3, T_cx - 273.15, "m-",                 lw=1.8, label="Cold HX (6→1)")
+
+    offsets = [(-18, 5), (5, 5), (5, 5), (5, 5), (5, -12), (-18, 5)]
+    _annotate_states(ax, [s1, s2, s3, s4, s5, s6], [T1, T2, T3, T4, T5, T6], offsets)
+
+
+def plot_Ts(out: dict, cfg: dict, save_path: str) -> None:
     fig, ax = plt.subplots(figsize=(7, 5))
 
-    ax.plot(s_c  / 1e3, T_c   - 273.15, "b-",  lw=1.8, label="Compressor (1→2)")
-    ax.plot(s_hx / 1e3, T_hx  - 273.15, "r-",  lw=1.8, label="Hot HX (2→2')")
-    ax.plot(s_t  / 1e3, T_t   - 273.15, "g-",  lw=1.8, label="Turbine (2'→3)")
-    ax.plot(s_cx / 1e3, T_cx  - 273.15, "m-",  lw=1.8, label="Cold HX (3→1)")
+    if out["cycle"] == "recuperated_brayton":
+        _plot_Ts_recuperated(ax, out, cfg)
+    else:
+        _plot_Ts_simple(ax, out, cfg)
 
-    # 상태점 마커
-    states_s = [s1, s2, s2p, s3]
-    states_T = [T1, T2, T2p, T3]
-    labels   = ["1", "2", "2'", "3"]
-    ax.scatter([s / 1e3 for s in states_s],
-               [T - 273.15 for T in states_T],
-               color="k", zorder=5, s=50)
-    offsets = [(-18, 5), (5, 5), (5, 5), (5, -12)]
-    for lbl, sx, Tx, off in zip(labels, states_s, states_T, offsets):
-        ax.annotate(lbl, (sx / 1e3, Tx - 273.15),
-                    xytext=off, textcoords="offset points", fontsize=10, fontweight="bold")
-
-    ax.axhline(0,   color="gray", lw=0.6, ls="--")
+    ax.axhline(0,    color="gray", lw=0.6, ls="--")
     ax.axhline(-100, color="gray", lw=0.6, ls="--")
-
     ax.set_xlabel("Entropy  s  [kJ/(kg·K)]", fontsize=11)
     ax.set_ylabel("Temperature  T  [°C]",    fontsize=11)
-    ax.set_title(f"T-s Diagram  |  Air  |  r_p = {out['pressure_ratio']:.2f}  |  COP = {out['COP']:.3f}",
-                 fontsize=11)
+    ax.set_title(
+        f"T-s Diagram  |  {cfg['fluid']}  |  {out['cycle']}"
+        f"  |  r_p = {out['pressure_ratio']:.2f}  |  COP = {out['COP']:.3f}",
+        fontsize=10)
     ax.legend(fontsize=9, loc="upper left")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -104,46 +152,80 @@ def plot_Ts(out: dict, cfg: dict, save_path: str) -> None:
 # P-h 선도
 # ─────────────────────────────────────────────
 
-def plot_Ph(out: dict, cfg: dict, save_path: str) -> None:
-    fluid = cfg["fluid"]
-    h1, h2, h2p, h3 = [st.h for st in out["states"]]
-    T1, T2, T2p, T3 = [st.T for st in out["states"]]
+def _plot_Ph_simple(ax, out: dict, cfg: dict) -> None:
+    """Simple Brayton (4 상태) P-h 선도 경로."""
+    fluid  = cfg["fluid"]
     P_low  = cfg["P_low"]
     P_high = out["P_high"]
+    h1, h2, h3, h4 = [st.h for st in out["states"]]
+    T1, T2, T3, T4 = [st.T for st in out["states"]]
 
-    # 각 과정 경로
-    _, _, h_c  = linear_path(0, 0, T1,  T2,  h1,  h2)           # 압축기
+    _, _, h_c  = linear_path(0, 0, T1, T2, h1, h2)
     P_c        = np.linspace(P_low, P_high, len(h_c))
-    _, _, h_hx = isobaric_path(T2, T2p, P_high, fluid)           # Hot HX
+    _, _, h_hx = isobaric_path(T2, T3, P_high, fluid)
     P_hx       = np.full(len(h_hx), P_high)
-    _, _, h_t  = linear_path(0, 0, T2p, T3,  h2p, h3)           # 터빈
+    _, _, h_t  = linear_path(0, 0, T3, T4, h3, h4)
     P_t        = np.linspace(P_high, P_low, len(h_t))
-    _, _, h_cx = isobaric_path(T3, T1,  P_low,  fluid)           # Cold HX
+    _, _, h_cx = isobaric_path(T4, T1, P_low,  fluid)
     P_cx       = np.full(len(h_cx), P_low)
 
+    ax.semilogy(h_c  / 1e3, P_c  / 1e3, "b-", lw=1.8, label="Compressor (1→2)")
+    ax.semilogy(h_hx / 1e3, P_hx / 1e3, "r-", lw=1.8, label="Hot HX (2→3)")
+    ax.semilogy(h_t  / 1e3, P_t  / 1e3, "g-", lw=1.8, label="Turbine (3→4)")
+    ax.semilogy(h_cx / 1e3, P_cx / 1e3, "m-", lw=1.8, label="Cold HX (4→1)")
+
+    offsets  = [(-18, 5), (4, 4), (4, -12), (-18, -12)]
+    states_P = [P_low, P_high, P_high, P_low]
+    _annotate_states_Ph(ax, [h1, h2, h3, h4], states_P, offsets)
+
+
+def _plot_Ph_recuperated(ax, out: dict, cfg: dict) -> None:
+    """Recuperated Brayton (6 상태) P-h 선도 경로."""
+    fluid  = cfg["fluid"]
+    P_low  = cfg["P_low"]
+    P_high = out["P_high"]
+    h1, h2, h3, h4, h5, h6 = [st.h for st in out["states"]]
+    T1, T2, T3, T4, T5, T6 = [st.T for st in out["states"]]
+
+    _, _, h_c  = linear_path(0, 0, T1, T2, h1, h2)
+    P_c        = np.linspace(P_low, P_high, len(h_c))
+    _, _, h_hx = isobaric_path(T2, T3, P_high, fluid)
+    P_hx       = np.full(len(h_hx), P_high)
+    _, _, h_rh = isobaric_path(T3, T4, P_high, fluid)
+    P_rh       = np.full(len(h_rh), P_high)
+    _, _, h_t  = linear_path(0, 0, T4, T5, h4, h5)
+    P_t        = np.linspace(P_high, P_low, len(h_t))
+    _, _, h_rc = isobaric_path(T5, T6, P_low,  fluid)
+    P_rc       = np.full(len(h_rc), P_low)
+    _, _, h_cx = isobaric_path(T6, T1, P_low,  fluid)
+    P_cx       = np.full(len(h_cx), P_low)
+
+    ax.semilogy(h_c  / 1e3, P_c  / 1e3, "b-",                 lw=1.8, label="Compressor (1→2)")
+    ax.semilogy(h_hx / 1e3, P_hx / 1e3, "r-",                 lw=1.8, label="Hot HX (2→3)")
+    ax.semilogy(h_rh / 1e3, P_rh / 1e3, color="darkorange",   lw=1.8, label="Recup hot (3→4)", ls="--")
+    ax.semilogy(h_t  / 1e3, P_t  / 1e3, "g-",                 lw=1.8, label="Turbine (4→5)")
+    ax.semilogy(h_rc / 1e3, P_rc / 1e3, color="mediumpurple", lw=1.8, label="Recup cold (5→6)", ls="--")
+    ax.semilogy(h_cx / 1e3, P_cx / 1e3, "m-",                 lw=1.8, label="Cold HX (6→1)")
+
+    offsets  = [(-18, 5), (4, 4), (4, 4), (4, -12), (-18, -12), (-18, 5)]
+    states_P = [P_low, P_high, P_high, P_high, P_low, P_low]
+    _annotate_states_Ph(ax, [h1, h2, h3, h4, h5, h6], states_P, offsets)
+
+
+def plot_Ph(out: dict, cfg: dict, save_path: str) -> None:
     fig, ax = plt.subplots(figsize=(7, 5))
 
-    ax.semilogy(h_c  / 1e3, P_c  / 1e3, "b-",  lw=1.8, label="Compressor (1→2)")
-    ax.semilogy(h_hx / 1e3, P_hx / 1e3, "r-",  lw=1.8, label="Hot HX (2→2')")
-    ax.semilogy(h_t  / 1e3, P_t  / 1e3, "g-",  lw=1.8, label="Turbine (2'→3)")
-    ax.semilogy(h_cx / 1e3, P_cx / 1e3, "m-",  lw=1.8, label="Cold HX (3→1)")
+    if out["cycle"] == "recuperated_brayton":
+        _plot_Ph_recuperated(ax, out, cfg)
+    else:
+        _plot_Ph_simple(ax, out, cfg)
 
-    # 상태점 마커
-    states_h = [h1, h2, h2p, h3]
-    states_P = [P_low, P_high, P_high, P_low]
-    labels   = ["1", "2", "2'", "3"]
-    ax.scatter([h / 1e3 for h in states_h],
-               [P / 1e3 for P in states_P],
-               color="k", zorder=5, s=50)
-    offsets = [(-18, 5), (4, 4), (4, -12), (-18, -12)]
-    for lbl, hx, Px, off in zip(labels, states_h, states_P, offsets):
-        ax.annotate(lbl, (hx / 1e3, Px / 1e3),
-                    xytext=off, textcoords="offset points", fontsize=10, fontweight="bold")
-
-    ax.set_xlabel("Enthalpy  h  [kJ/kg]",  fontsize=11)
+    ax.set_xlabel("Enthalpy  h  [kJ/kg]",            fontsize=11)
     ax.set_ylabel("Pressure  P  [kPa]  (log scale)", fontsize=11)
-    ax.set_title(f"P-h Diagram  |  Air  |  r_p = {out['pressure_ratio']:.2f}  |  COP = {out['COP']:.3f}",
-                 fontsize=11)
+    ax.set_title(
+        f"P-h Diagram  |  {cfg['fluid']}  |  {out['cycle']}"
+        f"  |  r_p = {out['pressure_ratio']:.2f}  |  COP = {out['COP']:.3f}",
+        fontsize=10)
     ax.legend(fontsize=9, loc="upper left")
     ax.grid(True, alpha=0.3, which="both")
     fig.tight_layout()
@@ -158,7 +240,7 @@ def plot_Ph(out: dict, cfg: dict, save_path: str) -> None:
 
 def sweep_rp(cfg_base: dict, save_dir: str,
              rp_min: float = 2.0, rp_max: float = 25.0, N: int = 60) -> None:
-    rp_vals, cop_vals, qc_vals, T3_vals = [], [], [], []
+    rp_vals, cop_vals, qc_vals, Tt_vals = [], [], [], []
 
     for rp in np.linspace(rp_min, rp_max, N):
         cfg = copy.deepcopy(cfg_base)
@@ -167,8 +249,8 @@ def sweep_rp(cfg_base: dict, save_dir: str,
             out = solve(cfg)
             rp_vals.append(rp)
             cop_vals.append(out["COP"])
-            qc_vals.append(out["Q_cold"] / 1e3)           # kW
-            T3_vals.append(out["states"][3].T_celsius())
+            qc_vals.append(out["Q_cold"] / 1e3)                  # kW
+            Tt_vals.append(out["T_turbine_outlet"] - 273.15)     # °C
         except Exception:
             pass   # 범위 밖 r_p 는 스킵
 
@@ -176,9 +258,9 @@ def sweep_rp(cfg_base: dict, save_dir: str,
     csv_path = os.path.join(save_dir, "cop_vs_rp.csv")
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["pressure_ratio", "COP", "Q_cold_kW", "T3_degC"])
-        for rp, cop, qc, T3 in zip(rp_vals, cop_vals, qc_vals, T3_vals):
-            w.writerow([f"{rp:.4f}", f"{cop:.6f}", f"{qc:.4f}", f"{T3:.4f}"])
+        w.writerow(["pressure_ratio", "COP", "Q_cold_kW", "T_turb_out_degC"])
+        for rp, cop, qc, Tt in zip(rp_vals, cop_vals, qc_vals, Tt_vals):
+            w.writerow([f"{rp:.4f}", f"{cop:.6f}", f"{qc:.4f}", f"{Tt:.4f}"])
 
     # 플롯
     fig, axes = plt.subplots(1, 3, figsize=(13, 4))
@@ -195,28 +277,33 @@ def sweep_rp(cfg_base: dict, save_dir: str,
     axes[1].set_title("Refrigeration Capacity vs r_p", fontsize=10)
     axes[1].grid(True, alpha=0.3)
 
-    axes[2].plot(rp_vals, T3_vals, "g-", lw=1.8)
+    axes[2].plot(rp_vals, Tt_vals, "g-", lw=1.8)
     axes[2].axhline(-100, color="gray", ls="--", lw=1, label="T = -100°C")
     axes[2].set_xlabel("Pressure Ratio  r_p  [-]", fontsize=10)
     axes[2].set_ylabel("Turbine Outlet T  [°C]", fontsize=10)
-    axes[2].set_title("T₃ vs Pressure Ratio", fontsize=10)
+    axes[2].set_title("T_turb_out vs Pressure Ratio", fontsize=10)
     axes[2].legend(fontsize=8)
     axes[2].grid(True, alpha=0.3)
 
-    # 목표 r_p 마커 (T3 = -100°C 달성 지점)
+    # 목표 r_p 마커 (T_turb_out = -100°C 달성 지점)
     target_rp = None
-    for rp, T3 in zip(rp_vals, T3_vals):
-        if T3 <= -100.0:
+    for rp, Tt in zip(rp_vals, Tt_vals):
+        if Tt <= -100.0:
             target_rp = rp
             break
     if target_rp is not None:
         for ax in axes:
-            ax.axvline(target_rp, color="orange", ls="--", lw=1.2, label=f"r_p={target_rp:.1f} (T₃=-100°C)")
+            ax.axvline(target_rp, color="orange", ls="--", lw=1.2,
+                       label=f"r_p={target_rp:.1f} (T=-100°C)")
         for ax in axes:
             ax.legend(fontsize=8)
 
-    fig.suptitle(f"Air Simple Reverse Brayton  |  η_c={cfg_base['eta_compressor']}  η_t={cfg_base['eta_turbine']}",
-                 fontsize=11)
+    cycle_name = cfg_base.get("cycle", "simple_brayton")
+    eps_str = (f"  ε={cfg_base['effectiveness']}" if "effectiveness" in cfg_base else "")
+    fig.suptitle(
+        f"{cycle_name}  |  η_c={cfg_base['eta_compressor']}"
+        f"  η_t={cfg_base['eta_turbine']}{eps_str}",
+        fontsize=11)
     fig.tight_layout()
     png_path = os.path.join(save_dir, "cop_vs_rp.png")
     fig.savefig(png_path, dpi=150)
@@ -249,7 +336,7 @@ def main():
     plot_Ts(out, cfg_run, os.path.join(result_dir, "cycle_Ts.png"))
     plot_Ph(out, cfg_run, os.path.join(result_dir, "cycle_Ph.png"))
 
-    # 파라미터 스윕 (T_compressor_inlet, T_turbine_inlet 고정, r_p 변화)
+    # 파라미터 스윕 (r_p 변화)
     print(f"  Running r_p sweep ...")
     sweep_rp(cfg, result_dir)
     print("  Done.")

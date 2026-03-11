@@ -1,4 +1,5 @@
 metric,value,unit
+cycle,simple_brayton,-
 pressure_ratio,12.906566,-
 P_low,101325.00,Pa
 P_high,1307757.76,Pa

@@ -1,0 +1,13 @@
+metric,value,unit
+cycle,recuperated_brayton,-
+pressure_ratio,1.813419,-
+P_low,101325.00,Pa
+P_high,183744.72,Pa
+Q_cold,12486.3741,W
+W_compressor,37012.6727,W
+W_turbine,12391.8968,W
+W_net,24620.7759,W
+COP,0.507148,-
+Q_recuperator,50405.2411,W
+energy_error,4.43e-07,-
+mass_flow,0.5000,kg/s
