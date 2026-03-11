@@ -2,7 +2,7 @@ cycle: simple_brayton        # cycles/ 폴더의 모듈명과 일치
 fluid: Air
 mass_flow: 0.382             # [kg/s]
 P_low: 101325                # [Pa]  (1 atm)
-pressure_ratio: null         # null: scipy 역산, 숫자: 고정값
+pressure_ratio: 2.4         # null: scipy 역산, 숫자: 고정값
 
 comp:
   eta_isen: 0.75             # 등엔트로피 효율 [-]  η_c = (h2s - h1) / (h2 - h1)
