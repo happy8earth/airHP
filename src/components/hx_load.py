@@ -48,7 +48,7 @@ def run(state_in: ThermodynamicState,
     UA = ua_scale(UA_rated, m_dot_sec, m_dot_rated)
 
     # hot = IM-7 (T_sec), cold = Air (state_in)
-    _T_sec_out, T_cold_out, Q_cf, _lmtd = solve_counterflow(
+    _T_sec_out, T_cold_out, Q_cf, lmtd = solve_counterflow(
         UA,
         T_sec,       101325.0,   "IM7",             # hot side: IM-7
         state_in.T,  state_in.P, state_in.fluid,    # cold side: Air
@@ -58,4 +58,5 @@ def run(state_in: ThermodynamicState,
     state_out = state_from_TP(T_cold_out, state_in.P,
                                fluid=state_in.fluid, label="LoadHX_out")
     return ComponentResult(state_out=state_out, W_dot=0.0, Q_dot=Q_cf,
-                           label="LoadHX")
+                           label="LoadHX",
+                           extra={"UA": UA, "LMTD": lmtd})

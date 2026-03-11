@@ -10,7 +10,7 @@ CoolProp 래퍼 및 공용 데이터 타입 정의.
     state_from_TP 분기에 등록.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import CoolProp.CoolProp as CP
 
 
@@ -57,6 +57,7 @@ class ComponentResult:
     W_dot:     float = 0.0   # [W]
     Q_dot:     float = 0.0   # [W]
     label:     str   = ""
+    extra:     dict  = field(default_factory=dict)  # 선택적 추가 정보 (UA, LMTD 등)
 
 
 # ─────────────────────────────────────────────

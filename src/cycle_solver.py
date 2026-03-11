@@ -173,7 +173,7 @@ def solve(config: dict) -> dict:
 
     # 에너지 평형 검증
     energy_residual = sum(r.W_dot + r.Q_dot for r in component_results)
-    energy_error    = abs(energy_residual) / abs(Q_cold)
+    energy_error    = abs(energy_residual) / abs(Q_cold) if Q_cold != 0.0 else float("nan")
 
     result_dir = make_result_dir(config)
 

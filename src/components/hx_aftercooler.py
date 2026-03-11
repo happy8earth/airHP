@@ -41,7 +41,7 @@ def run(state_in: ThermodynamicState,
     """
     UA = ua_scale(UA_rated, m_dot, m_dot_rated)
 
-    T_hot_out, _T_sec_out, Q_cf, _lmtd = solve_counterflow(
+    T_hot_out, _T_sec_out, Q_cf, lmtd = solve_counterflow(
         UA,
         state_in.T, state_in.P, state_in.fluid,   # hot side
         T_sec,      101325.0,   "water",           # cold side (P 무시)
@@ -52,4 +52,5 @@ def run(state_in: ThermodynamicState,
                                fluid=state_in.fluid, label="Aftercooler_out")
     Q_dot = -Q_cf   # working fluid 기준: 열 방출 → 음수
     return ComponentResult(state_out=state_out, W_dot=0.0, Q_dot=Q_dot,
-                           label="Aftercooler")
+                           label="Aftercooler",
+                           extra={"UA": UA, "LMTD": lmtd})

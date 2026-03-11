@@ -95,6 +95,16 @@ def print_results(cfg: dict, out: dict) -> None:
         print(f"    Q_recuperator           : {out['Q_recuperator']/1e3:>8.3f} kW")
     print(f"    COP                     : {out['COP']:>8.4f}")
     print(f"    Energy balance error    : {out['energy_error']:.2e}")
+
+    # HX 상세 (UA·LMTD 파라미터)
+    hx_results = [r for r in out["results"] if r.extra.get("UA") is not None]
+    if hx_results:
+        print()
+        print("  Heat Exchangers (UA·LMTD):")
+        print(f"    {'Component':<16} {'UA [W/K]':>10} {'LMTD [K]':>10} {'Q [kW]':>8}")
+        print("  " + "-" * 50)
+        for r in hx_results:
+            print(f"    {r.label:<16} {r.extra['UA']:>10.1f} {r.extra['LMTD']:>10.2f} {abs(r.Q_dot)/1e3:>8.3f}")
     print(SEP)
 
 
