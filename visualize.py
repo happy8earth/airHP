@@ -231,7 +231,8 @@ def sweep_rp(cfg_base: dict, save_dir: str,
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--config", required=True)
+    p.add_argument("--config", default="configs/simple_baseline.yaml",
+                   help="YAML 설정 파일 경로 (기본: configs/simple_baseline.yaml)")
     args = p.parse_args()
 
     with open(args.config, encoding="utf-8") as f:
