@@ -24,7 +24,7 @@ from scipy.optimize import brentq
 
 from properties import state_from_TP, state_from_hP, ComponentResult
 from components import compressor, expander
-from components import hx_heat_rejection, hx_heat_absorption
+from components import hx_aftercooler, hx_load
 import components.hx_recuperator as hx_recuperator
 
 
@@ -83,7 +83,7 @@ def run_cycle(config: dict, P_high: float) -> dict:
         state2 = comp_res.state_out
 
         # Hot HX: 2 -> 3
-        hothx_res = hx_heat_rejection.run(state2, T_out=T3_set, m_dot=m_dot)
+        hothx_res = hx_aftercooler.run(state2, T_out=T3_set, m_dot=m_dot)
         state3 = hothx_res.state_out
 
         # Inner brentq: find T4 such that recuperator hot outlet matches T4

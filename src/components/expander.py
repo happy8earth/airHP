@@ -1,7 +1,7 @@
 """
-components/turbine.py
-─────────────────────
-비등엔트로피 터빈 모델.
+components/expander.py
+──────────────────────
+비등엔트로피 팽창기 모델.
 
   in → out_s : 등엔트로피 팽창 (이상)
   in → out   : 실제 팽창 (η_t 적용)
@@ -25,7 +25,7 @@ def run(state_in: ThermodynamicState,
     """
     Parameters
     ----------
-    state_in : ThermodynamicState  터빈 입구 상태
+    state_in : ThermodynamicState  팽창기 입구 상태
     P_out    : float               출구 압력 [Pa]
     eta_t    : float               등엔트로피 효율 [-]
     m_dot    : float               질량 유량 [kg/s]
@@ -33,7 +33,7 @@ def run(state_in: ThermodynamicState,
     Returns
     -------
     ComponentResult
-        state_out : 터빈 출구 상태
+        state_out : 팽창기 출구 상태
         W_dot     : 발생 동력 [W], 음수
         Q_dot     : 0.0
     """

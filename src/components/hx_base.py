@@ -3,7 +3,7 @@ components/hx_base.py
 ─────────────────────
 등압 열교환 공통 로직 (내부용).
 
-  hx_heat_rejection.py, hx_heat_absorption.py 의 베이스.
+  hx_aftercooler.py, hx_load.py 의 베이스.
   직접 호출하지 말고 각 전용 모듈을 사용할 것.
 
   부호 규칙 (표준 열역학, ΣW_dot + ΣQ_dot = 0 만족):

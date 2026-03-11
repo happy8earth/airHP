@@ -47,7 +47,7 @@ class ComponentResult:
 
     부호 규칙 (열역학 제1법칙 기준):
       W_dot > 0 : 시스템이 외부로부터 일을 받음  → 압축기
-      W_dot < 0 : 시스템이 외부로 일을 함        → 터빈
+      W_dot < 0 : 시스템이 외부로 일을 함        → 팽창기
       Q_dot < 0 : 시스템이 외부로 열을 방출       → Aftercooler
       Q_dot > 0 : 시스템이 외부로부터 열을 받음   → Load HX
 

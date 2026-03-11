@@ -5,7 +5,7 @@ cycle_solver.py
 
   1. config["cycle"] 에 해당하는 cycles/ 모듈을 동적 임포트
   2. pressure_ratio 가 null 이면 scipy brentq 로 P_high 역산
-     (터빈 출구 온도 = T_turbine_outlet 조건)
+     (팽창기 출구 온도 = T_turbine_outlet 조건)
   3. 사이클 실행 방식:
        - 모듈에 run_cycle() 이 있으면 직접 호출  (recuperated_brayton 등)
        - 없으면 SEQUENCE 순차 실행              (simple_brayton 등)
@@ -64,7 +64,7 @@ def _run_sequence(cycle_module, config: dict, P_high: float):
 
 def _find_P_high(cycle_module, config: dict, use_run_cycle: bool) -> float:
     """
-    scipy brentq 로 터빈 출구 온도 = T_turbine_outlet 을 만족하는 P_high 탐색.
+    scipy brentq 로 팽창기 출구 온도 = T_turbine_outlet 을 만족하는 P_high 탐색.
     """
     T_target = config["expander"]["T_outlet_target"]
     P_low    = config["P_low"]
@@ -76,7 +76,7 @@ def _find_P_high(cycle_module, config: dict, use_run_cycle: bool) -> float:
                 T_expander_out = out["T_expander_outlet"]
             except ValueError:
                 # 작동 유체가 두 상 영역 진입 등 물리적으로 불가능한 조건
-                # → 터빈 출구가 목표보다 훨씬 낮다고 간주 (P_high 가 너무 큼)
+                # → 팽창기 출구가 목표보다 훨씬 낮다고 간주 (P_high 가 너무 큼)
                 return T_target - 400.0
         else:
             results = _run_sequence(cycle_module, config, P_high)

@@ -21,7 +21,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from components import compressor, expander
-from components import hx_heat_rejection, hx_heat_absorption
+from components import hx_aftercooler, hx_load
 
 
 def _compressor_kwargs(config: dict, state_in, P_high: float) -> dict:
@@ -51,7 +51,7 @@ STATE_LABELS = [
 # 각 항목: (label, component_fn, kwargs_fn)
 SEQUENCE = [
     ("Compressor", compressor.run,          _compressor_kwargs),
-    ("HotHX",      hx_heat_rejection.run,   _hot_hx_kwargs),
+    ("Aftercooler", hx_aftercooler.run,       _hot_hx_kwargs),
     ("Expander",    expander.run,             _expander_kwargs),
-    ("ColdHX",     hx_heat_absorption.run,  _cold_hx_kwargs),
+    ("LoadHX",      hx_load.run,             _cold_hx_kwargs),
 ]

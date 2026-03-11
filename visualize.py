@@ -63,7 +63,7 @@ def isobaric_path(T_start_K: float, T_end_K: float, P_Pa: float,
 
 
 def linear_path(s1, s2, T1, T2, h1, h2, N: int = 30):
-    """압축기/터빈 (비등엔트로피) 선형 경로."""
+    """압축기/팽창기 (비등엔트로피) 선형 경로."""
     s = np.linspace(s1, s2, N)
     T = np.linspace(T1, T2, N)
     h = np.linspace(h1, h2, N)
@@ -106,7 +106,7 @@ def _plot_Ts_simple(ax, out: dict, cfg: dict) -> None:
 
     T_c,  s_c,  _ = linear_path(s1, s2, T1, T2, 0, 0)    # 압축기
     T_hx, s_hx, _ = isobaric_path(T2, T3, P_high, fluid)  # Hot HX
-    T_t,  s_t,  _ = linear_path(s3, s4, T3, T4, 0, 0)    # 터빈
+    T_t,  s_t,  _ = linear_path(s3, s4, T3, T4, 0, 0)    # 팽창기
     T_cx, s_cx, _ = isobaric_path(T4, T1, P_low,  fluid)  # Cold HX
 
     ax.plot(s_c  / 1e3, T_c  - 273.15, "b-", lw=1.8, label="Compressor (1→2)")
@@ -129,7 +129,7 @@ def _plot_Ts_recuperated(ax, out: dict, cfg: dict) -> None:
     T_c,   s_c,   _ = linear_path(s1, s2, T1, T2, 0, 0)     # 압축기
     T_hx,  s_hx,  _ = isobaric_path(T2, T3, P_high, fluid)   # Hot HX
     T_rh,  s_rh,  _ = isobaric_path(T3, T4, P_high, fluid)   # Recuperator hot
-    T_t,   s_t,   _ = linear_path(s4, s5, T4, T5, 0, 0)     # 터빈
+    T_t,   s_t,   _ = linear_path(s4, s5, T4, T5, 0, 0)     # 팽창기
     T_cx,  s_cx,  _ = isobaric_path(T5, T6, P_low,  fluid)   # Cold HX
     T_rc,  s_rc,  _ = isobaric_path(T6, T1, P_low,  fluid)   # Recuperator cold
 
