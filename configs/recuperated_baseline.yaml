@@ -13,7 +13,7 @@ expander:
   T_outlet_target: 173.15   # [K]  (-100°C)  outer brentq 수렴 목표
 
 hx_aftercooler:
-  T_outlet: 298.15           # [K]  (25°C)  TODO 1-1: UA·LMTD 전환 후 제거
+  #T_outlet: 298.15           # [K]  (25°C)  TODO 1-1: UA·LMTD 전환 후 제거
   UA_rated: 870              # [W/K]  정격 UA
   m_dot_rated: 0.382         # [kg/s]  정격 1차측(Air) 유량
   T_secondary: 291.15        # [K]  (18°C)  냉각수 입구 온도
@@ -21,7 +21,11 @@ hx_aftercooler:
   dP: 0                      # [Pa]  압력 손실 (0 = 현재 무시)
 
 hx_load:
-  Q_load: 5000               # [W]  냉동부하 (양수 = 열 흡수)
+  #Q_load: 5000               # [W]  TODO 1-2: UA·LMTD 전환 후 제거
+  UA_rated: 1301.01          # [W/K]  정격 UA
+  m_dot_rated: 0.382         # [kg/s]  정격 1차측(IM-7) 유량
+  T_secondary: 197.65        # [K]  (-75.5°C)  IM-7 입구 온도 (냉동 공간)
+  m_dot_secondary: 0.827     # [kg/s]  IM-7 유량
   dP: 0                      # [Pa]  압력 손실 (0 = 현재 무시)
 
 hx_recup:

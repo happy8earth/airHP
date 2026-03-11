@@ -84,9 +84,9 @@ def _find_P_high(cycle_module, config: dict, use_run_cycle: bool) -> float:
             T_expander_out = results[2].state_out.T
         return T_expander_out - T_target
 
-    # 탐색 범위: 1.5 atm ~ 20 atm
+    # 탐색 범위: 1.5 atm ~ 50 atm
     P_lo = P_low * 1.5
-    P_hi = P_low * 20.0
+    P_hi = P_low * 50.0
 
     if error(P_lo) * error(P_hi) > 0:
         raise ValueError(

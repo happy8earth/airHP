@@ -1,4 +1,4 @@
-﻿"""
+"""
 cycles/recuperated_brayton.py
 ----------------------------
 Recuperated Brayton cycle (effectiveness-based recuperator).
@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from scipy.optimize import brentq
 
-from properties import state_from_TP, state_from_hP, ComponentResult
+from properties import state_from_TP, ComponentResult
 from components import compressor, expander
 from components import hx_aftercooler, hx_load
 import components.hx_recuperator as hx_recuperator
@@ -66,17 +66,19 @@ def run_cycle(config: dict, P_high: float) -> dict:
     # T1: compressor inlet (recuperator cold outlet) initial guess
     T1 = config["comp"]["T_inlet"]
 
-    # Load HX: use Q_load (required) to determine outlet state (State 6)
-    if "hx_load" not in config or "Q_load" not in config["hx_load"]:
-        raise ValueError("recuperated_brayton: hx_load.Q_load is required")
-    Q_load = config["hx_load"]["Q_load"]
-
     # Aftercooler UA params
     ac = config["hx_aftercooler"]
     ac_UA_rated    = ac["UA_rated"]
     ac_m_dot_rated = ac["m_dot_rated"]
     ac_T_sec       = ac["T_secondary"]
     ac_m_dot_sec   = ac["m_dot_secondary"]
+
+    # Load HX UA params
+    lhx = config["hx_load"]
+    lhx_UA_rated    = lhx["UA_rated"]
+    lhx_m_dot_rated = lhx["m_dot_rated"]
+    lhx_T_sec       = lhx["T_secondary"]
+    lhx_m_dot_sec   = lhx["m_dot_secondary"]
 
     for _ in range(30):
         # State 1: compressor inlet
@@ -99,8 +101,11 @@ def run_cycle(config: dict, P_high: float) -> dict:
         def _residual(T4_K: float) -> float:
             _s4 = state_from_TP(T4_K, P_high, fluid)
             _s5 = expander.run(_s4, P_out=P_low, eta_t=eta_t, m_dot=m_dot).state_out
-            _h6 = _s5.h + Q_load / m_dot
-            _s6 = state_from_hP(_h6, P_low, fluid=_s5.fluid, label="State6")
+            _lhx = hx_load.run(_s5,
+                               UA_rated=lhx_UA_rated, m_dot=m_dot,
+                               m_dot_rated=lhx_m_dot_rated,
+                               T_sec=lhx_T_sec, m_dot_sec=lhx_m_dot_sec)
+            _s6 = _lhx.state_out
             _recup_hot, _ = hx_recuperator.run(state3, _s6, effectiveness=eps, m_dot=m_dot)
             return T4_K - _recup_hot.state_out.T
 
@@ -117,10 +122,14 @@ def run_cycle(config: dict, P_high: float) -> dict:
         exp_res = expander.run(state4, P_out=P_low, eta_t=eta_t, m_dot=m_dot)
         state5 = exp_res.state_out
 
-        # Load HX: 5 -> 6 (Q_load-based)
-        h6 = state5.h + Q_load / m_dot
-        state6 = state_from_hP(h6, P_low, fluid=state5.fluid, label="State6")
-        loadhx_res = ComponentResult(state_out=state6, W_dot=0.0, Q_dot=Q_load, label="LoadHX")
+        # Load HX: 5 -> 6  (UA·LMTD, hot=IM-7, cold=Air)
+        loadhx_res = hx_load.run(
+            state5,
+            UA_rated=lhx_UA_rated, m_dot=m_dot,
+            m_dot_rated=lhx_m_dot_rated,
+            T_sec=lhx_T_sec, m_dot_sec=lhx_m_dot_sec,
+        )
+        state6 = loadhx_res.state_out
 
         # Recuperator: hot (3->4) and cold (6->1)
         recup_hot, recup_cold = hx_recuperator.run(

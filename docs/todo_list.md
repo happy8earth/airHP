@@ -35,33 +35,35 @@ def solve_counterflow(UA, state_hot_in, state_cold_in,
 
 ---
 
-### [ ] 1-1. Aftercooler UA·LMTD 전환
+### [x] 1-1. Aftercooler UA·LMTD 전환
 *(가장 단순 — 2차측 물, Cp 상수, 순환 의존성 없음)*
 
-- **[A]** YAML: `hx_aftercooler.T_outlet` 제거 → `UA_rated, m_dot_rated, T_secondary, m_dot_secondary`
-- **[B]** `hx_ua_lmtd.py` 공용 solver 신규 작성
-- **[C]** `hx_aftercooler.py` 리팩터
-  - hot = working fluid, cold = 물 (Cp_water ≈ 4186 J/kg·K)
-  - `run(state_in, UA_rated, m_dot, m_dot_rated, T_sec, m_dot_sec)` → ComponentResult
-- **[D]** `simple_brayton.py`: `T3_set` 제거 → aftercooler UA 기반 T3 계산
-- **[E]** `recuperated_brayton.py`: 동일 (`T3_set` 제거)
-- **[F]** `main.py`: Aftercooler UA [W/K], LMTD [K], Q_dot [W] 출력 추가
-- 검증: Simple Brayton으로 T3, Q_dot, COP 확인
+- **[A]** YAML: `UA_rated, m_dot_rated, T_secondary, m_dot_secondary` 추가 (`T_outlet` 미사용)
+- **[B]** `hx_ua_lmtd.py` 기존 파일 그대로 사용 (이미 구현 완료)
+- **[C]** `hx_aftercooler.py` 리팩터 완료 — `solve_counterflow` 호출로 교체
+- **[D]** `simple_brayton.py`: UA 파라미터 전달로 교체 완료
+- **[E]** `recuperated_brayton.py`: `T3_set` 제거, UA 파라미터 전달 완료
+- **[F]** `main.py` 출력 업데이트 — 추후 처리
+- 검증 완료: Simple T3=308 K, Recuperated T3=305 K (물리적 타당), energy_error < 1.2e-3
 
 ---
 
-### [ ] 1-2. Load HX UA·LMTD 전환
+### [x] 1-2. Load HX UA·LMTD 전환
 *(2차측 IM-7, Cp 가변 — im7_properties 연동)*
 
-- **[A]** YAML: `hx_load.UA_rated, m_dot_rated, T_secondary, m_dot_secondary` 추가
-- **[B]** `hx_load.py` 리팩터
-  - hot = IM-7 (Cp from im7_properties), cold = working fluid
-  - `run(state_in, UA_rated, m_dot, m_dot_rated, T_sec, m_dot_sec)` → ComponentResult
-- **[C]** `simple_brayton.py`, `recuperated_brayton.py`: Load HX 호출 인자 변경
-  - T1 circular dependency → **fixed-point iteration** 추가
-    (`T1_guess → run_cycle → T1_new → 반복, 보통 2~3회 수렴`)
-- **[D]** `main.py`: Load HX UA [W/K], LMTD [K], Q_dot [W] 출력 추가
-- 검증: T1 수렴성, Q_cold, COP 확인
+- **[A]** YAML: `hx_load.UA_rated=1301.01, m_dot_rated=0.382, T_secondary=197.65, m_dot_secondary=0.827` 추가 (Simple + Recuperated)
+- **[B]** `hx_load.py` 리팩터 — hot=IM-7, cold=Air, `solve_counterflow` 호출
+  - T_sec ≤ T_air_in 시 Q_dot=0 반환 (물리적 상한 처리)
+- **[C]** `simple_brayton.py`: SEQUENCE → `run_cycle` 전환, T1 fixed-point iteration 내장
+- **[D]** `recuperated_brayton.py`: Q_load 계산 → `hx_load.run()` 교체 (inner brentq 내부 포함)
+  - `recuperated_baseline.yaml` Q_load 항목은 미사용 상태로 잔류 (TODO 주석)
+- **[E]** `cycle_solver.py`: brentq 탐색 상한 20 atm → 50 atm 확장
+- **[F]** `simple_baseline.yaml`: `pressure_ratio: null` (T5=173 K 달성에 rp≈24.4 필요)
+  - 리큐퍼레이터 덕분에 recuperated는 rp=2.4에서도 T5=179.9 K 달성 가능
+- 검증 완료:
+  - Simple: T1=197.19 K, T5=173.15 K, Q_cold=9.26 kW, COP=0.103, energy_error=1.6e-4
+  - Recuperated: T5=179.9 K, T6=197.32 K, Q_cold=6.71 kW, COP=0.253, energy_error=2.7e-3
+- **남은 작업**: `main.py` 출력 추가 (1-1[F]와 함께), `recuperated_baseline.yaml` Q_load 항목 제거
 
 ---
 
