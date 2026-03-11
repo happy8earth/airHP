@@ -130,15 +130,15 @@ def _plot_Ts_recuperated(ax, out: dict, cfg: dict) -> None:
     T_hx,  s_hx,  _ = isobaric_path(T2, T3, P_high, fluid)   # Hot HX
     T_rh,  s_rh,  _ = isobaric_path(T3, T4, P_high, fluid)   # Recuperator hot
     T_t,   s_t,   _ = linear_path(s4, s5, T4, T5, 0, 0)     # 터빈
-    T_rc,  s_rc,  _ = isobaric_path(T5, T6, P_low,  fluid)   # Recuperator cold
-    T_cx,  s_cx,  _ = isobaric_path(T6, T1, P_low,  fluid)   # Cold HX
+    T_cx,  s_cx,  _ = isobaric_path(T5, T6, P_low,  fluid)   # Cold HX
+    T_rc,  s_rc,  _ = isobaric_path(T6, T1, P_low,  fluid)   # Recuperator cold
 
     ax.plot(s_c  / 1e3, T_c  - 273.15, "b-",                 lw=1.8, label="Compressor (1→2)")
     ax.plot(s_hx / 1e3, T_hx - 273.15, "r-",                 lw=1.8, label="Hot HX (2→3)")
     ax.plot(s_rh / 1e3, T_rh - 273.15, color="darkorange",   lw=1.8, label="Recup hot (3→4)", ls="--")
     ax.plot(s_t  / 1e3, T_t  - 273.15, "g-",                 lw=1.8, label="Expander (4→5)")
-    ax.plot(s_rc / 1e3, T_rc - 273.15, color="mediumpurple", lw=1.8, label="Recup cold (5→6)", ls="--")
-    ax.plot(s_cx / 1e3, T_cx - 273.15, "m-",                 lw=1.8, label="Cold HX (6→1)")
+    ax.plot(s_cx / 1e3, T_cx - 273.15, "m-",                 lw=1.8, label="Cold HX (5→6)")
+    ax.plot(s_rc / 1e3, T_rc - 273.15, color="mediumpurple", lw=1.8, label="Recup cold (6→1)", ls="--")
 
     offsets = [(-18, 5), (5, 5), (5, 5), (5, 5), (5, -12), (-18, 5)]
     _annotate_states(ax, [s1, s2, s3, s4, s5, s6], [T1, T2, T3, T4, T5, T6], offsets)
@@ -215,17 +215,17 @@ def _plot_Ph_recuperated(ax, out: dict, cfg: dict) -> None:
     P_rh       = np.full(len(h_rh), P_high)
     _, _, h_t  = linear_path(0, 0, T4, T5, h4, h5)
     P_t        = np.linspace(P_high, P_low, len(h_t))
-    _, _, h_rc = isobaric_path(T5, T6, P_low,  fluid)
-    P_rc       = np.full(len(h_rc), P_low)
-    _, _, h_cx = isobaric_path(T6, T1, P_low,  fluid)
+    _, _, h_cx = isobaric_path(T5, T6, P_low,  fluid)
     P_cx       = np.full(len(h_cx), P_low)
+    _, _, h_rc = isobaric_path(T6, T1, P_low,  fluid)
+    P_rc       = np.full(len(h_rc), P_low)
 
     ax.semilogy(h_c  / 1e3, P_c  / 1e3, "b-",                 lw=1.8, label="Compressor (1→2)")
     ax.semilogy(h_hx / 1e3, P_hx / 1e3, "r-",                 lw=1.8, label="Hot HX (2→3)")
     ax.semilogy(h_rh / 1e3, P_rh / 1e3, color="darkorange",   lw=1.8, label="Recup hot (3→4)", ls="--")
     ax.semilogy(h_t  / 1e3, P_t  / 1e3, "g-",                 lw=1.8, label="Expander (4→5)")
-    ax.semilogy(h_rc / 1e3, P_rc / 1e3, color="mediumpurple", lw=1.8, label="Recup cold (5→6)", ls="--")
-    ax.semilogy(h_cx / 1e3, P_cx / 1e3, "m-",                 lw=1.8, label="Cold HX (6→1)")
+    ax.semilogy(h_cx / 1e3, P_cx / 1e3, "m-",                 lw=1.8, label="Cold HX (5→6)")
+    ax.semilogy(h_rc / 1e3, P_rc / 1e3, color="mediumpurple", lw=1.8, label="Recup cold (6→1)", ls="--")
 
     offsets  = [(-18, 5), (4, 4), (4, 4), (4, -12), (-18, -12), (-18, 5)]
     states_P = [P_low, P_high, P_high, P_high, P_low, P_low]

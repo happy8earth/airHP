@@ -4,10 +4,10 @@ pressure_ratio,2.400000,-
 P_low,101325.00,Pa
 P_high,243180.00,Pa
 Q_cold,5000.0000,W
-W_compressor,39979.3689,W
-W_expander,13787.2014,W
-W_net,26192.1675,W
-COP,0.190897,-
-Q_recuperator,36251.0964,W
-energy_error,2.04e-05,-
+W_compressor,38418.5802,W
+W_expander,17903.5418,W
+W_net,20515.0384,W
+COP,0.243724,-
+Q_recuperator,13099.7271,W
+energy_error,1.78e-07,-
 mass_flow,0.3820,kg/s

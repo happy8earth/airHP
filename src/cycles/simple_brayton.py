@@ -43,8 +43,8 @@ def _cold_hx_kwargs(config: dict, state_in, P_high: float) -> dict:
 STATE_LABELS = [
     "1 (C-in)",
     "2 (C-out)",
-    "3 (T-in)",
-    "4 (T-out)",
+    "3 (E-in)",
+    "4 (E-out)",
 ]
 
 # cycle_solver.py 가 읽는 SEQUENCE

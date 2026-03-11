@@ -29,12 +29,12 @@ import components.hx_recuperator as hx_recuperator
 
 
 STATE_LABELS = [
-    "1 (C-in)",
+    "1 (C-in / Recup-out)",
     "2 (C-out)",
     "3 (HX-out)",
     "4 (E-in)",
-    "5 (E-out)",
-    "6 (load-out)",
+    "5 (E-out / Load-in)",
+    "6 (Load-out / Recup-in)",
 ]
 
 
