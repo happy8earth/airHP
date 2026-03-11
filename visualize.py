@@ -29,6 +29,26 @@ from cycle_solver import solve
 import CoolProp.CoolProp as CP
 
 
+_CYCLE_MENU = {
+    "1": ("Simple Brayton",      "configs/simple_baseline.yaml"),
+    "2": ("Recuperated Brayton", "configs/recuperated_baseline.yaml"),
+}
+
+
+def _select_config_interactively() -> str:
+    """--config 생략 시 사이클 선택 메뉴 표시."""
+    print("사이클 선택:")
+    for key, (name, path) in _CYCLE_MENU.items():
+        print(f"  {key}. {name}  ({path})")
+    choice = input("번호 입력 [1]: ").strip() or "1"
+    if choice not in _CYCLE_MENU:
+        print(f"잘못된 입력 '{choice}' → 1번으로 실행합니다.")
+        choice = "1"
+    name, path = _CYCLE_MENU[choice]
+    print(f"  → {name}  ({path})\n")
+    return path
+
+
 # ─────────────────────────────────────────────
 # 보조 함수
 # ─────────────────────────────────────────────
@@ -319,11 +339,13 @@ def sweep_rp(cfg_base: dict, save_dir: str,
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--config", default="configs/simple_baseline.yaml",
-                   help="YAML 설정 파일 경로 (기본: configs/simple_baseline.yaml)")
+    p.add_argument("--config", default=None,
+                   help="YAML 설정 파일 경로 (생략 시 메뉴 선택)")
     args = p.parse_args()
 
-    with open(args.config, encoding="utf-8") as f:
+    config_path = args.config if args.config else _select_config_interactively()
+
+    with open(config_path, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
     # 기준점 실행 (pressure_ratio=null → 역산)
