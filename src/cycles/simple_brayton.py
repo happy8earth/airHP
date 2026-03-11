@@ -20,7 +20,8 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from components import compressor, turbine, heat_exchanger
+from components import compressor, turbine
+from components import hx_heat_rejection, hx_heat_absorption
 
 
 def _compressor_kwargs(config: dict, state_in, P_high: float) -> dict:
@@ -28,7 +29,7 @@ def _compressor_kwargs(config: dict, state_in, P_high: float) -> dict:
 
 
 def _hot_hx_kwargs(config: dict, state_in, P_high: float) -> dict:
-    return dict(T_out=config["T_turbine_inlet"], m_dot=config["mass_flow"], label="HotHX")
+    return dict(T_out=config["T_turbine_inlet"], m_dot=config["mass_flow"])
 
 
 def _turbine_kwargs(config: dict, state_in, P_high: float) -> dict:
@@ -36,14 +37,14 @@ def _turbine_kwargs(config: dict, state_in, P_high: float) -> dict:
 
 
 def _cold_hx_kwargs(config: dict, state_in, P_high: float) -> dict:
-    return dict(T_out=config["T_compressor_inlet"], m_dot=config["mass_flow"], label="ColdHX")
+    return dict(T_out=config["T_compressor_inlet"], m_dot=config["mass_flow"])
 
 
 # cycle_solver.py 가 읽는 SEQUENCE
 # 각 항목: (label, component_fn, kwargs_fn)
 SEQUENCE = [
-    ("Compressor", compressor.run,     _compressor_kwargs),
-    ("HotHX",      heat_exchanger.run, _hot_hx_kwargs),
-    ("Turbine",    turbine.run,        _turbine_kwargs),
-    ("ColdHX",     heat_exchanger.run, _cold_hx_kwargs),
+    ("Compressor", compressor.run,          _compressor_kwargs),
+    ("HotHX",      hx_heat_rejection.run,   _hot_hx_kwargs),
+    ("Turbine",    turbine.run,             _turbine_kwargs),
+    ("ColdHX",     hx_heat_absorption.run,  _cold_hx_kwargs),
 ]

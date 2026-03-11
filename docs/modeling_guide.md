@@ -311,18 +311,21 @@ class ThermodynamicState:
 class ComponentResult:
     state_out: ThermodynamicState
     W_dot:     float = 0.0   # [W]  일: 소비(+), 발생(−)
-    Q_dot:     float = 0.0   # [W]  열: 방출(+), 흡수(−)
+    Q_dot:     float = 0.0   # [W]  열: 흡수(+), 방출(−)
     label:     str   = ""
 ```
 
-> **부호 규칙 (열역학 제1법칙 기준)**  
-> `W_dot > 0` : 시스템이 외부로부터 일을 받음 → 압축기  
-> `W_dot < 0` : 시스템이 외부로 일을 함 → 터빈  
-> `Q_dot > 0` : 시스템이 외부로 열을 방출 → Hot HX  
-> `Q_dot < 0` : 시스템이 외부로부터 열을 받음 → Cold HX  
+> **부호 규칙 (표준 열역학 제1법칙 기준)**
+> `W_dot > 0` : 유체가 외부로부터 일을 받음 → 압축기
+> `W_dot < 0` : 유체가 외부로 일을 함 → 터빈
+> `Q_dot < 0` : 유체가 외부로 열을 방출 → Hot HX
+> `Q_dot > 0` : 유체가 외부로부터 열을 받음 → Cold HX (**냉동 능력**)
 >
-> 이 부호 규칙을 따르면 에너지 평형 검증식이 단순해진다:  
-> `ΣW_dot + ΣQ_dot ≈ 0`
+> 이 부호 규칙을 따르면 에너지 평형 검증식이 성립한다:
+> `ΣW_dot + ΣQ_dot = Σ m_dot*(h_out - h_in) = 0` (사이클 폐루프)
+>
+> > **Note:** 냉동 능력은 `Q_cold = ComponentResult.Q_dot` (양수),
+> > COP = `Q_cold / W_net` where `W_net = W_comp + W_turb` (W_turb < 0이므로 자동 차감)
 
 ### 6.2 컴포넌트별 I/O 명세
 

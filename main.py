@@ -21,7 +21,8 @@ from cycle_solver import solve
 
 def parse_args():
     p = argparse.ArgumentParser(description="Simple Reverse Brayton Cryogenic Refrigerator")
-    p.add_argument("--config", required=True, help="YAML 설정 파일 경로")
+    p.add_argument("--config", default="configs/simple_baseline.yaml",
+                   help="YAML 설정 파일 경로 (기본: configs/simple_baseline.yaml)")
     return p.parse_args()
 
 
