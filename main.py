@@ -160,6 +160,6 @@ def main():
     print_results(cfg, out)
     save_results(cfg, out)
 
-2
+
 if __name__ == "__main__":
     main()
