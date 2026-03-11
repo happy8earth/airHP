@@ -71,8 +71,12 @@ def run_cycle(config: dict, P_high: float) -> dict:
         raise ValueError("recuperated_brayton: hx_load.Q_load is required")
     Q_load = config["hx_load"]["Q_load"]
 
-    # Aftercooler outlet target
-    T3_set = config["hx_aftercooler"]["T_outlet"]
+    # Aftercooler UA params
+    ac = config["hx_aftercooler"]
+    ac_UA_rated    = ac["UA_rated"]
+    ac_m_dot_rated = ac["m_dot_rated"]
+    ac_T_sec       = ac["T_secondary"]
+    ac_m_dot_sec   = ac["m_dot_secondary"]
 
     for _ in range(30):
         # State 1: compressor inlet
@@ -82,8 +86,13 @@ def run_cycle(config: dict, P_high: float) -> dict:
         comp_res = compressor.run(state1, P_out=P_high, eta_c=eta_c, m_dot=m_dot)
         state2 = comp_res.state_out
 
-        # Hot HX: 2 -> 3
-        hothx_res = hx_aftercooler.run(state2, T_out=T3_set, m_dot=m_dot)
+        # Aftercooler: 2 -> 3  (UA·LMTD)
+        hothx_res = hx_aftercooler.run(
+            state2,
+            UA_rated=ac_UA_rated, m_dot=m_dot,
+            m_dot_rated=ac_m_dot_rated,
+            T_sec=ac_T_sec, m_dot_sec=ac_m_dot_sec,
+        )
         state3 = hothx_res.state_out
 
         # Inner brentq: find T4 such that recuperator hot outlet matches T4

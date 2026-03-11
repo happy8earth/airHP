@@ -29,7 +29,14 @@ def _compressor_kwargs(config: dict, state_in, P_high: float) -> dict:
 
 
 def _hot_hx_kwargs(config: dict, state_in, P_high: float) -> dict:
-    return dict(T_out=config["hx_aftercooler"]["T_outlet"], m_dot=config["mass_flow"])
+    ac = config["hx_aftercooler"]
+    return dict(
+        UA_rated    = ac["UA_rated"],
+        m_dot       = config["mass_flow"],
+        m_dot_rated = ac["m_dot_rated"],
+        T_sec       = ac["T_secondary"],
+        m_dot_sec   = ac["m_dot_secondary"],
+    )
 
 
 def _expander_kwargs(config: dict, state_in, P_high: float) -> dict:

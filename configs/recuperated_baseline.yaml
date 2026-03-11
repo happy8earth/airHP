@@ -13,7 +13,11 @@ expander:
   T_outlet_target: 173.15   # [K]  (-100°C)  outer brentq 수렴 목표
 
 hx_aftercooler:
-  T_outlet: 298.15           # [K]  (25°C)  State 3 = Aftercooler 출구 = Recuperator hot 입구
+  T_outlet: 298.15           # [K]  (25°C)  TODO 1-1: UA·LMTD 전환 후 제거
+  UA_rated: 870              # [W/K]  정격 UA
+  m_dot_rated: 0.382         # [kg/s]  정격 1차측(Air) 유량
+  T_secondary: 291.15        # [K]  (18°C)  냉각수 입구 온도
+  m_dot_secondary: 0.38      # [kg/s]  냉각수 유량
   dP: 0                      # [Pa]  압력 손실 (0 = 현재 무시)
 
 hx_load:
