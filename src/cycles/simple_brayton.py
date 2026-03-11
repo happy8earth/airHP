@@ -20,7 +20,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from components import compressor, turbine
+from components import compressor, expander
 from components import hx_heat_rejection, hx_heat_absorption
 
 
@@ -32,8 +32,8 @@ def _hot_hx_kwargs(config: dict, state_in, P_high: float) -> dict:
     return dict(T_out=config["hx_aftercooler"]["T_outlet"], m_dot=config["mass_flow"])
 
 
-def _turbine_kwargs(config: dict, state_in, P_high: float) -> dict:
-    return dict(P_out=config["P_low"], eta_t=config["turbine"]["eta_isen"], m_dot=config["mass_flow"])
+def _expander_kwargs(config: dict, state_in, P_high: float) -> dict:
+    return dict(P_out=config["P_low"], eta_t=config["expander"]["eta_isen"], m_dot=config["mass_flow"])
 
 
 def _cold_hx_kwargs(config: dict, state_in, P_high: float) -> dict:
@@ -52,6 +52,6 @@ STATE_LABELS = [
 SEQUENCE = [
     ("Compressor", compressor.run,          _compressor_kwargs),
     ("HotHX",      hx_heat_rejection.run,   _hot_hx_kwargs),
-    ("Turbine",    turbine.run,             _turbine_kwargs),
+    ("Expander",    expander.run,             _expander_kwargs),
     ("ColdHX",     hx_heat_absorption.run,  _cold_hx_kwargs),
 ]

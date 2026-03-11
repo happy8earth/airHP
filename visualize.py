@@ -111,7 +111,7 @@ def _plot_Ts_simple(ax, out: dict, cfg: dict) -> None:
 
     ax.plot(s_c  / 1e3, T_c  - 273.15, "b-", lw=1.8, label="Compressor (1→2)")
     ax.plot(s_hx / 1e3, T_hx - 273.15, "r-", lw=1.8, label="Hot HX (2→3)")
-    ax.plot(s_t  / 1e3, T_t  - 273.15, "g-", lw=1.8, label="Turbine (3→4)")
+    ax.plot(s_t  / 1e3, T_t  - 273.15, "g-", lw=1.8, label="Expander (3→4)")
     ax.plot(s_cx / 1e3, T_cx - 273.15, "m-", lw=1.8, label="Cold HX (4→1)")
 
     offsets = [(-18, 5), (5, 5), (5, 5), (5, -12)]
@@ -136,7 +136,7 @@ def _plot_Ts_recuperated(ax, out: dict, cfg: dict) -> None:
     ax.plot(s_c  / 1e3, T_c  - 273.15, "b-",                 lw=1.8, label="Compressor (1→2)")
     ax.plot(s_hx / 1e3, T_hx - 273.15, "r-",                 lw=1.8, label="Hot HX (2→3)")
     ax.plot(s_rh / 1e3, T_rh - 273.15, color="darkorange",   lw=1.8, label="Recup hot (3→4)", ls="--")
-    ax.plot(s_t  / 1e3, T_t  - 273.15, "g-",                 lw=1.8, label="Turbine (4→5)")
+    ax.plot(s_t  / 1e3, T_t  - 273.15, "g-",                 lw=1.8, label="Expander (4→5)")
     ax.plot(s_rc / 1e3, T_rc - 273.15, color="mediumpurple", lw=1.8, label="Recup cold (5→6)", ls="--")
     ax.plot(s_cx / 1e3, T_cx - 273.15, "m-",                 lw=1.8, label="Cold HX (6→1)")
 
@@ -191,7 +191,7 @@ def _plot_Ph_simple(ax, out: dict, cfg: dict) -> None:
 
     ax.semilogy(h_c  / 1e3, P_c  / 1e3, "b-", lw=1.8, label="Compressor (1→2)")
     ax.semilogy(h_hx / 1e3, P_hx / 1e3, "r-", lw=1.8, label="Hot HX (2→3)")
-    ax.semilogy(h_t  / 1e3, P_t  / 1e3, "g-", lw=1.8, label="Turbine (3→4)")
+    ax.semilogy(h_t  / 1e3, P_t  / 1e3, "g-", lw=1.8, label="Expander (3→4)")
     ax.semilogy(h_cx / 1e3, P_cx / 1e3, "m-", lw=1.8, label="Cold HX (4→1)")
 
     offsets  = [(-18, 5), (4, 4), (4, -12), (-18, -12)]
@@ -223,7 +223,7 @@ def _plot_Ph_recuperated(ax, out: dict, cfg: dict) -> None:
     ax.semilogy(h_c  / 1e3, P_c  / 1e3, "b-",                 lw=1.8, label="Compressor (1→2)")
     ax.semilogy(h_hx / 1e3, P_hx / 1e3, "r-",                 lw=1.8, label="Hot HX (2→3)")
     ax.semilogy(h_rh / 1e3, P_rh / 1e3, color="darkorange",   lw=1.8, label="Recup hot (3→4)", ls="--")
-    ax.semilogy(h_t  / 1e3, P_t  / 1e3, "g-",                 lw=1.8, label="Turbine (4→5)")
+    ax.semilogy(h_t  / 1e3, P_t  / 1e3, "g-",                 lw=1.8, label="Expander (4→5)")
     ax.semilogy(h_rc / 1e3, P_rc / 1e3, color="mediumpurple", lw=1.8, label="Recup cold (5→6)", ls="--")
     ax.semilogy(h_cx / 1e3, P_cx / 1e3, "m-",                 lw=1.8, label="Cold HX (6→1)")
 
@@ -270,7 +270,7 @@ def sweep_rp(cfg_base: dict, save_dir: str,
             rp_vals.append(rp)
             cop_vals.append(out["COP"])
             qc_vals.append(out["Q_cold"] / 1e3)                  # kW
-            Tt_vals.append(out["T_turbine_outlet"] - 273.15)     # °C
+            Tt_vals.append(out["T_expander_outlet"] - 273.15)     # °C
         except Exception:
             pass   # 범위 밖 r_p 는 스킵
 
@@ -278,7 +278,7 @@ def sweep_rp(cfg_base: dict, save_dir: str,
     csv_path = os.path.join(save_dir, "cop_vs_rp.csv")
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["pressure_ratio", "COP", "Q_cold_kW", "T_turb_out_degC"])
+        w.writerow(["pressure_ratio", "COP", "Q_cold_kW", "T_expander_out_degC"])
         for rp, cop, qc, Tt in zip(rp_vals, cop_vals, qc_vals, Tt_vals):
             w.writerow([f"{rp:.4f}", f"{cop:.6f}", f"{qc:.4f}", f"{Tt:.4f}"])
 
@@ -300,8 +300,8 @@ def sweep_rp(cfg_base: dict, save_dir: str,
     axes[2].plot(rp_vals, Tt_vals, "g-", lw=1.8)
     axes[2].axhline(-100, color="gray", ls="--", lw=1, label="T = -100°C")
     axes[2].set_xlabel("Pressure Ratio  r_p  [-]", fontsize=10)
-    axes[2].set_ylabel("Turbine Outlet T  [°C]", fontsize=10)
-    axes[2].set_title("T_turb_out vs Pressure Ratio", fontsize=10)
+    axes[2].set_ylabel("Expander Outlet T  [°C]", fontsize=10)
+    axes[2].set_title("T_expander_out vs Pressure Ratio", fontsize=10)
     axes[2].legend(fontsize=8)
     axes[2].grid(True, alpha=0.3)
 
@@ -323,7 +323,7 @@ def sweep_rp(cfg_base: dict, save_dir: str,
     eps_str = (f"  ε={recup['effectiveness']}" if "effectiveness" in recup else "")
     fig.suptitle(
         f"{cycle_name}  |  η_c={cfg_base['comp']['eta_isen']}"
-        f"  η_t={cfg_base['turbine']['eta_isen']}{eps_str}",
+        f"  η_t={cfg_base['expander']['eta_isen']}{eps_str}",
         fontsize=11)
     fig.tight_layout()
     png_path = os.path.join(save_dir, "cop_vs_rp.png")

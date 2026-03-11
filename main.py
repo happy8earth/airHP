@@ -89,7 +89,7 @@ def print_results(cfg: dict, out: dict) -> None:
     print("  Performance:")
     print(f"    Q_cold  (Refrigeration) : {out['Q_cold']/1e3:>8.3f} kW")
     print(f"    W_compressor            : {out['W_compressor']/1e3:>8.3f} kW")
-    print(f"    W_turbine               : {out['W_turbine']/1e3:>8.3f} kW")
+    print(f"    W_expander               : {out['W_expander']/1e3:>8.3f} kW")
     print(f"    W_net                   : {out['W_net']/1e3:>8.3f} kW")
     if out.get("Q_recuperator", 0.0) > 0:
         print(f"    Q_recuperator           : {out['Q_recuperator']/1e3:>8.3f} kW")
@@ -131,7 +131,7 @@ def save_results(cfg: dict, out: dict) -> None:
         w.writerow(["P_high",         f"{out['P_high']:.2f}",              "Pa"])
         w.writerow(["Q_cold",         f"{out['Q_cold']:.4f}",              "W"])
         w.writerow(["W_compressor",   f"{out['W_compressor']:.4f}",        "W"])
-        w.writerow(["W_turbine",      f"{out['W_turbine']:.4f}",           "W"])
+        w.writerow(["W_expander",      f"{out['W_expander']:.4f}",           "W"])
         w.writerow(["W_net",          f"{out['W_net']:.4f}",               "W"])
         w.writerow(["COP",            f"{out['COP']:.6f}",                 "-"])
         if out.get("Q_recuperator", 0.0) > 0:

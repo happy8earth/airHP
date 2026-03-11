@@ -39,16 +39,16 @@ def run(state_in: ThermodynamicState,
     """
     # 등엔트로피 출구 (이상, ideal)
     state_out_s = state_from_sP(state_in.s, P_out,
-                                fluid=state_in.fluid, label="TurbineOut_s")
+                                fluid=state_in.fluid, label="ExpanderOut_s")
 
     # 실제 출구 엔탈피
     h_out = state_in.h - eta_t * (state_in.h - state_out_s.h)
 
     # 실제 출구 상태
     state_out = state_from_hP(h_out, P_out,
-                               fluid=state_in.fluid, label="TurbineOut")
+                               fluid=state_in.fluid, label="ExpanderOut")
 
     W_dot = m_dot * (state_out.h - state_in.h)   # 음수
 
     return ComponentResult(state_out=state_out, W_dot=W_dot, Q_dot=0.0,
-                           label="Turbine")
+                           label="Expander")
