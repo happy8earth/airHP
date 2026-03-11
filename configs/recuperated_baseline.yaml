@@ -29,6 +29,8 @@ hx_load:
   dP: 0                      # [Pa]  압력 손실 (0 = 현재 무시)
 
 hx_recup:
-  effectiveness: 0.80        # ε [-]  ε = (T3 - T4) / (T3 - T5)
+  #effectiveness: 0.80        # ε [-]  TODO 1-3: UA·LMTD 전환 후 제거
+  UA_rated: 5102.04          # [W/K]  정격 UA
+  m_dot_rated: 0.382         # [kg/s]  정격 질량 유량 (양측 대칭)
   dP_hot: 0                  # [Pa]  고압 스트림 압력 손실 (3→4)
   dP_cold: 0                 # [Pa]  저압 스트림 압력 손실 (5→6)

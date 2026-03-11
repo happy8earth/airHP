@@ -60,8 +60,12 @@ def run_cycle(config: dict, P_high: float) -> dict:
     m_dot = config["mass_flow"]
     eta_c = config["comp"]["eta_isen"]
     eta_t = config["expander"]["eta_isen"]
-    eps   = config["hx_recup"]["effectiveness"]
     P_low = config["P_low"]
+
+    # Recuperator UA 파라미터
+    rc = config["hx_recup"]
+    rc_UA_rated    = rc["UA_rated"]
+    rc_m_dot_rated = rc["m_dot_rated"]
 
     # T1: compressor inlet (recuperator cold outlet) initial guess
     T1 = config["comp"]["T_inlet"]
@@ -106,7 +110,8 @@ def run_cycle(config: dict, P_high: float) -> dict:
                                m_dot_rated=lhx_m_dot_rated,
                                T_sec=lhx_T_sec, m_dot_sec=lhx_m_dot_sec)
             _s6 = _lhx.state_out
-            _recup_hot, _ = hx_recuperator.run(state3, _s6, effectiveness=eps, m_dot=m_dot)
+            _recup_hot, _ = hx_recuperator.run(state3, _s6,
+                               UA_rated=rc_UA_rated, m_dot=m_dot, m_dot_rated=rc_m_dot_rated)
             return T4_K - _recup_hot.state_out.T
 
         T4_lo, T4_hi = 140.0, state3.T
@@ -131,9 +136,10 @@ def run_cycle(config: dict, P_high: float) -> dict:
         )
         state6 = loadhx_res.state_out
 
-        # Recuperator: hot (3->4) and cold (6->1)
+        # Recuperator: hot (3->4) and cold (6->1)  (UA·LMTD)
         recup_hot, recup_cold = hx_recuperator.run(
-            state3, state6, effectiveness=eps, m_dot=m_dot
+            state3, state6,
+            UA_rated=rc_UA_rated, m_dot=m_dot, m_dot_rated=rc_m_dot_rated,
         )
 
         T1_new = recup_cold.state_out.T

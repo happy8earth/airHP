@@ -1,40 +1,39 @@
 """
 components/hx_recuperator.py
 ─────────────────────────────
-역류형 리큐퍼레이터 (effectiveness 기반).
+역류형 리큐퍼레이터 (UA·LMTD 기반).
 
-  hot side  : 고압 스트림이 열을 방출  (Q_dot < 0)
-  cold side : 저압 스트림이 열을 흡수  (Q_dot > 0)
+  hot side  : 고압 스트림 (State 3 → State 4)  Q_dot < 0
+  cold side : 저압 스트림 (State 6 → State 1)  Q_dot > 0
 
   평형 유량 (m_dot_hot = m_dot_cold = m_dot) 가정.
+  양측 모두 작동 유체(Air) — CoolProp, 서로 다른 압력.
 
-  ε 정의 (온도 기반):
-    ε = (T_hot_in - T_hot_out) / (T_hot_in - T_cold_in)
-  ∴ T_hot_out = T_hot_in - ε * (T_hot_in - T_cold_in)
-
-  에너지 수지 (실제 엔탈피 기반):
-    Q = m_dot * (h_hot_in - h_hot_out)          [정확]
-    h_cold_out = h_cold_in + Q / m_dot          [정확]
+  UA scaling (양측 대칭, m_dot 기준):
+    UA = UA_rated × (m_dot / m_dot_rated)^0.8
 """
 
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from properties import ThermodynamicState, ComponentResult, state_from_TP, state_from_hP
+from properties import ThermodynamicState, ComponentResult, state_from_TP
+from components.hx_ua_lmtd import ua_scale, solve_counterflow
 
 
 def run(state_hot_in: ThermodynamicState,
         state_cold_in: ThermodynamicState,
-        effectiveness: float,
-        m_dot: float) -> tuple[ComponentResult, ComponentResult]:
+        UA_rated: float,
+        m_dot: float,
+        m_dot_rated: float) -> tuple[ComponentResult, ComponentResult]:
     """
     Parameters
     ----------
-    state_hot_in   : ThermodynamicState  고압(hot) 스트림 입구
-    state_cold_in  : ThermodynamicState  저압(cold) 스트림 입구
-    effectiveness  : float               열교환 효율 ε  [0, 1]
-    m_dot          : float               질량 유량 [kg/s] (양측 동일)
+    state_hot_in  : ThermodynamicState  고압(hot) 스트림 입구 (State 3)
+    state_cold_in : ThermodynamicState  저압(cold) 스트림 입구 (State 6)
+    UA_rated      : float               정격 UA [W/K]
+    m_dot         : float               질량 유량 [kg/s] (양측 동일)
+    m_dot_rated   : float               정격 질량 유량 [kg/s]
 
     Returns
     -------
@@ -47,24 +46,23 @@ def run(state_hot_in: ThermodynamicState,
             f"Recuperator: T_hot_in ({state_hot_in.T:.2f} K) "
             f"<= T_cold_in ({state_cold_in.T:.2f} K)"
         )
-    if not (0.0 < effectiveness <= 1.0):
-        raise ValueError(f"Recuperator: effectiveness={effectiveness} 는 (0, 1] 범위여야 함.")
 
-    # hot side 출구 온도 (ε 정의)
-    T_hot_out = state_hot_in.T - effectiveness * (state_hot_in.T - state_cold_in.T)
-    state_hot_out = state_from_TP(T_hot_out, state_hot_in.P,
-                                  fluid=state_hot_in.fluid, label="RecupHotOut")
+    UA = ua_scale(UA_rated, m_dot, m_dot_rated)
 
-    # hot side 열량 (음수: 방열)
-    Q_hot = m_dot * (state_hot_out.h - state_hot_in.h)   # < 0
+    T_hot_out, T_cold_out, Q_cf, _lmtd = solve_counterflow(
+        UA,
+        state_hot_in.T,  state_hot_in.P,  state_hot_in.fluid,   # hot side
+        state_cold_in.T, state_cold_in.P, state_cold_in.fluid,   # cold side
+        m_dot, m_dot,
+    )
 
-    # cold side 출구 엔탈피 (에너지 수지)
-    h_cold_out = state_cold_in.h + (-Q_hot / m_dot)      # = h_cold_in + |Q_hot|/m_dot
-    state_cold_out = state_from_hP(h_cold_out, state_cold_in.P,
-                                   fluid=state_cold_in.fluid, label="RecupColdOut")
+    state_hot_out  = state_from_TP(T_hot_out,  state_hot_in.P,
+                                    fluid=state_hot_in.fluid,  label="RecupHotOut")
+    state_cold_out = state_from_TP(T_cold_out, state_cold_in.P,
+                                    fluid=state_cold_in.fluid, label="RecupColdOut")
 
-    # cold side 열량 (양수: 흡열)
-    Q_cold = m_dot * (state_cold_out.h - state_cold_in.h)   # > 0
+    Q_hot  = m_dot * (state_hot_out.h  - state_hot_in.h)   # < 0
+    Q_cold = m_dot * (state_cold_out.h - state_cold_in.h)  # > 0
 
     result_hot  = ComponentResult(state_out=state_hot_out,  W_dot=0.0,
                                   Q_dot=Q_hot,  label="RecupHot")

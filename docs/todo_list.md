@@ -67,17 +67,15 @@ def solve_counterflow(UA, state_hot_in, state_cold_in,
 
 ---
 
-### [ ] 1-3. Recuperator UA·LMTD 전환
-*(양측 모두 작동유체, 가장 복잡 — inner brentq 수정 필요)*
+### [x] 1-3. Recuperator UA·LMTD 전환
+*(양측 모두 작동유체 Air — CoolProp, 서로 다른 압력)*
 
-- **[A]** YAML: `hx_recup.effectiveness` 제거 → `UA_rated, m_dot_rated`
-- **[B]** `hx_recuperator.py` 리팩터
+- **[A]** YAML: `hx_recup.effectiveness` 주석 처리 → `UA_rated=5102.04, m_dot_rated=0.382` 추가
+- **[B]** `hx_recuperator.py` 리팩터 — `solve_counterflow(Air/P_high, Air/P_low)` 호출
   - UA scaling: `UA = UA_rated × (m_dot / m_dot_rated)^0.8` (양측 대칭)
-  - `run(state_hot_in, state_cold_in, UA_rated, m_dot, m_dot_rated)` → (result_hot, result_cold)
-- **[C]** `recuperated_brayton.py` inner brentq residual 수정:
-  ε 기반 `T4 = T3 - ε*(T3-T5)` → UA 기반 `Q(T4) - UA·LMTD(T4) = 0`
-- **[D]** `main.py`: Recuperator UA [W/K], LMTD [K], Q_dot [W] 출력 추가
-- 검증: T1 수렴성, 에너지 평형, COP 확인
+- **[C]** `recuperated_brayton.py`: `effectiveness` 인자 → UA 인자로 교체 (inner brentq 포함)
+- 검증 완료: T1=301.33 K, T4=205.13 K, T5=168.48 K, T6=197.10 K, Q_cold=11.02 kW, COP=0.368, Q_recup=40.05 kW, energy_error=5.8e-4
+- **남은 작업**: `main.py` 출력 추가 (1-1[F]와 함께), YAML effectiveness 항목 제거
 
 ---
 
