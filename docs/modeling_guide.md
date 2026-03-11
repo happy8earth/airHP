@@ -264,10 +264,10 @@ airHP/
 │   ├─ components/
 │   │   ├─ compressor.py             ← 비등엔트로피 압축기
 │   │   ├─ turbine.py                ← 비등엔트로피 터빈
-│   │   ├─ hx_base.py                ← 등압 열교환 공통 로직
-│   │   ├─ hx_heat_rejection.py      ← Hot HX (고압측 방열)
-│   │   ├─ hx_heat_absorption.py     ← Cold HX (냉동 부하)
-│   │   └─ hx_recuperator.py         ← 리큐퍼레이터 (ε 기반)
+│   │   ├─ hx_heat_rejection.py      ← Aftercooler (UA·LMTD 기반 방열)
+│   │   ├─ hx_heat_absorption.py     ← Load HX (UA·LMTD 기반 냉동 부하)
+│   │   ├─ hx_recuperator.py         ← 리큐퍼레이터 (UA·LMTD 기반)
+│   │   └─ hx_ua_lmtd.py            ← UA 스케일링 + counter-flow LMTD solver
 │   │
 │   ├─ cycles/
 │   │   ├─ simple_brayton.py         ← SEQUENCE 방식 (4 states)
@@ -296,10 +296,10 @@ airHP/
 | `properties.py` | CoolProp 래퍼, `ThermodynamicState` / `ComponentResult` 정의 |
 | `components/compressor.py` | 압축기: in → out_s (이상) → out (실제) |
 | `components/turbine.py` | 터빈: in → out_s (이상) → out (실제) |
-| `components/hx_base.py` | 등압 HX 공통 로직 |
-| `components/hx_heat_rejection.py` | Aftercooler (`hx_aftercooler`) — 고압측 방열 |
-| `components/hx_heat_absorption.py` | Load HX (`hx_load`) — 냉동 부하 흡수 |
-| `components/hx_recuperator.py` | 리큐퍼레이터: ε 기반, 양방향 출력 |
+| `components/hx_heat_rejection.py` | Aftercooler — UA·LMTD 기반 방열 |
+| `components/hx_heat_absorption.py` | Load HX — UA·LMTD 기반 냉동 부하 흡수 |
+| `components/hx_recuperator.py` | 리큐퍼레이터 — UA·LMTD 기반, 양방향 출력 |
+| `components/hx_ua_lmtd.py` | UA 스케일링 + counter-flow LMTD solver (공용) |
 | `cycles/simple_brayton.py` | SEQUENCE 정의 + `STATE_LABELS` |
 | `cycles/recuperated_brayton.py` | `run_cycle()` + `STATE_LABELS` |
 | `cycle_solver.py` | SEQUENCE / run_cycle 자동 분기, brentq 역산 |

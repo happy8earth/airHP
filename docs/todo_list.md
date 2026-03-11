@@ -161,7 +161,7 @@ Air 고정 (CoolProp `"Air"` pseudo-pure).
 - [x] IM-7 물성 모듈 (`im7_properties.py`) — CSV 보간 + 2차 Cp 피팅 + h/s 해석적 적분, 유효범위 −70∼70°C (외삽 지원)
 - [x] Simple Reverse Brayton cycle 4-상태 구현 (1→2→3→4)
 - [x] 상태 표기 정수화 (prime 표기 제거)
-- [x] HX 분리: `hx_base`, `hx_aftercooler`, `hx_load`, `hx_recuperator`
+- [x] HX 분리: `hx_aftercooler`, `hx_load`, `hx_recuperator` (`hx_base` 삭제 — UA·LMTD 전환으로 불필요)
 - [x] Recuperated Brayton cycle 6-상태 구현 (1→6)
 - [x] 리큐퍼레이터 순환 의존성 inner brentq 해결
 - [x] CoolProp 이상 영역 ValueError 핸들링 (T4_lo = 140 K)

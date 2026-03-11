@@ -42,10 +42,8 @@
    - Load HX: UA–LMTD 기반 열흡수.
 1. `src/components/hx_recuperator.py`  
    - Recuperator: UA–LMTD 기반 열교환(Hot/Cold 스트림 동시 계산).
-1. `src/components/hx_ua_lmtd.py`  
+1. `src/components/hx_ua_lmtd.py`
    - UA 스케일링과 counter-flow LMTD solver 제공.
-1. `src/components/hx_base.py`  
-   - 단순 온도지정형 HX 기본 로직(현재는 직접 호출되지 않음).
 
 **5. 물성/데이터 모델**
 1. `src/properties/__init__.py`  
@@ -84,7 +82,6 @@ airHP/
     components/
       compressor.py
       turbine.py
-      hx_base.py
       hx_heat_rejection.py
       hx_heat_absorption.py
       hx_recuperator.py
