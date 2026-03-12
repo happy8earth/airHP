@@ -4,6 +4,7 @@ main.py
 사용법:
   python main.py --config configs/simple_baseline.yaml
   python main.py --config configs/recuperated_baseline.yaml
+  python main.py --config configs/bypass_a_baseline.yaml
 """
 
 import argparse
@@ -14,6 +15,9 @@ import csv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from cycle_solver import solve
+from bypass_solver import solve as bypass_solve
+
+_BYPASS_CYCLES = {"bypass_a_brayton"}
 
 
 # ─────────────────────────────────────────────
@@ -23,6 +27,7 @@ from cycle_solver import solve
 _CYCLE_MENU = {
     "1": ("Simple Brayton",      "configs/simple_baseline.yaml"),
     "2": ("Recuperated Brayton", "configs/recuperated_baseline.yaml"),
+    "3": ("Bypass-A Brayton",    "configs/bypass_a_baseline.yaml"),
 }
 
 
@@ -61,6 +66,9 @@ def print_results(cfg: dict, out: dict) -> None:
     print(f"  Mass Flow Rate  : {cfg['mass_flow']:.3f} kg/s")
     print(f"  Pressure Ratio  : {out['pressure_ratio']:.4f}")
     print(f"  P_low / P_high  : {cfg['P_low']/1e3:.2f} kPa / {out['P_high']/1e3:.2f} kPa")
+    if "x_bypass" in out:
+        x_max_str = f"  /  x_max = {out['x_max']*100:.1f}%" if "x_max" in out else ""
+        print(f"  Bypass Fraction : {out['x_bypass']:.4f}  (x = {out['x_bypass']*100:.2f}%{x_max_str})")
     print()
 
     # 상태점 테이블 (상태 수 자동 대응)
@@ -94,6 +102,9 @@ def print_results(cfg: dict, out: dict) -> None:
     if out.get("Q_recuperator", 0.0) > 0:
         print(f"    Q_recuperator           : {out['Q_recuperator']/1e3:>8.3f} kW")
     print(f"    COP                     : {out['COP']:>8.4f}")
+    if "T_sec_out" in out and out["T_sec_out"] is not None:
+        print(f"    T_sec_out (IM-7 out)    : {out['T_sec_out'] - 273.15:>7.2f} °C"
+              f"  (target: {out['T_sec_out_target'] - 273.15:.2f} °C)")
     print(f"    Energy balance error    : {out['energy_error']:.2e}")
 
     # HX 상세 (UA·LMTD 파라미터)
@@ -101,10 +112,18 @@ def print_results(cfg: dict, out: dict) -> None:
     if hx_results:
         print()
         print("  Heat Exchangers (UA·LMTD):")
-        print(f"    {'Component':<16} {'UA [W/K]':>10} {'LMTD [K]':>10} {'Q [kW]':>8}")
-        print("  " + "-" * 50)
+        hdr = f"    {'Component':<16} {'UA [W/K]':>10} {'LMTD [K]':>10} {'Q [kW]':>8}"
+        eps_col = any(r.extra.get("epsilon") is not None for r in hx_results)
+        if eps_col:
+            hdr += f"  {'ε [-]':>6}"
+        print(hdr)
+        print("  " + "-" * (50 + (9 if eps_col else 0)))
         for r in hx_results:
-            print(f"    {r.label:<16} {r.extra['UA']:>10.1f} {r.extra['LMTD']:>10.2f} {abs(r.Q_dot)/1e3:>8.3f}")
+            line = (f"    {r.label:<16} {r.extra['UA']:>10.1f} "
+                    f"{r.extra['LMTD']:>10.2f} {abs(r.Q_dot)/1e3:>8.3f}")
+            if eps_col and r.extra.get("epsilon") is not None:
+                line += f"  {r.extra['epsilon']:>6.4f}"
+            print(line)
     print(SEP)
 
 
@@ -139,13 +158,17 @@ def save_results(cfg: dict, out: dict) -> None:
         w.writerow(["pressure_ratio", f"{out['pressure_ratio']:.6f}",      "-"])
         w.writerow(["P_low",          f"{cfg['P_low']:.2f}",               "Pa"])
         w.writerow(["P_high",         f"{out['P_high']:.2f}",              "Pa"])
+        if "x_bypass" in out:
+            w.writerow(["x_bypass",   f"{out['x_bypass']:.6f}",           "-"])
         w.writerow(["Q_cold",         f"{out['Q_cold']:.4f}",              "W"])
         w.writerow(["W_compressor",   f"{out['W_compressor']:.4f}",        "W"])
-        w.writerow(["W_expander",      f"{out['W_expander']:.4f}",           "W"])
+        w.writerow(["W_expander",      f"{out['W_expander']:.4f}",          "W"])
         w.writerow(["W_net",          f"{out['W_net']:.4f}",               "W"])
         w.writerow(["COP",            f"{out['COP']:.6f}",                 "-"])
         if out.get("Q_recuperator", 0.0) > 0:
             w.writerow(["Q_recuperator", f"{out['Q_recuperator']:.4f}",    "W"])
+        if "T_sec_out" in out and out["T_sec_out"] is not None:
+            w.writerow(["T_sec_out",  f"{out['T_sec_out']:.4f}",           "K"])
         w.writerow(["energy_error",   f"{out['energy_error']:.2e}",        "-"])
         w.writerow(["mass_flow",      f"{cfg['mass_flow']:.4f}",           "kg/s"])
 
@@ -166,7 +189,11 @@ def main():
     with open(config_path, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
-    out = solve(cfg)
+    if cfg.get("cycle") in _BYPASS_CYCLES:
+        out = bypass_solve(cfg)
+    else:
+        out = solve(cfg)
+
     print_results(cfg, out)
     save_results(cfg, out)
 

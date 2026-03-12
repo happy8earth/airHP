@@ -46,12 +46,20 @@ def run(state_in: ThermodynamicState,
         state_out : 압축기 입구 상태 (State 1)
         W_dot     : 0.0
         Q_dot     : > 0  (냉동 능력, working fluid 열 흡수)
+        extra     : {
+            "UA"       : float  유효 UA [W/K],
+            "LMTD"     : float  대수평균온도차 [K],
+            "T_sec_out": float  IM-7 출구온도 [K],
+            "epsilon"  : float  열교환기 유효도 [-],
+        }
     """
     # IM-7이 Air보다 차갑거나 같으면 열전달 불가 (Q_dot = 0)
     if T_sec <= state_in.T:
         return ComponentResult(state_out=state_from_TP(state_in.T, state_in.P,
                                 fluid=state_in.fluid, label="LoadHX_out"),
-                               W_dot=0.0, Q_dot=0.0, label="LoadHX")
+                               W_dot=0.0, Q_dot=0.0, label="LoadHX",
+                               extra={"UA": 0.0, "LMTD": 0.0,
+                                      "T_sec_out": T_sec, "epsilon": 0.0})
 
     UA = ua_scale_two_side(
         htc_hot_rated, area_hot,  m_dot_hot,  m_dot_hot_rated,
@@ -59,15 +67,25 @@ def run(state_in: ThermodynamicState,
     )
 
     # hot = IM-7 (T_sec), cold = Air (state_in)
-    _T_sec_out, T_cold_out, Q_cf, lmtd = solve_counterflow(
+    T_sec_out, T_cold_out, Q_cf, lmtd = solve_counterflow(
         UA,
         T_sec,       101325.0,   "IM7",             # hot side: IM-7
         state_in.T,  state_in.P, state_in.fluid,    # cold side: Air
         m_dot_hot, m_dot_cold,
     )
 
+    # ε (effectiveness) — C = Q/ΔT (에너지 기반 평균 열용량 유량)
+    dT_hot  = T_sec     - T_sec_out          # IM-7 온도 강하
+    dT_cold = T_cold_out - state_in.T        # Air 온도 상승
+    C_hot  = Q_cf / dT_hot  if dT_hot  > 1e-6 else float("inf")
+    C_cold = Q_cf / dT_cold if dT_cold > 1e-6 else float("inf")
+    C_min  = min(C_hot, C_cold)
+    Q_max  = C_min * (T_sec - state_in.T)   # T_hot_in - T_cold_in
+    epsilon = Q_cf / Q_max if Q_max > 0.0 else 0.0
+
     state_out = state_from_TP(T_cold_out, state_in.P,
                                fluid=state_in.fluid, label="LoadHX_out")
     return ComponentResult(state_out=state_out, W_dot=0.0, Q_dot=Q_cf,
                            label="LoadHX",
-                           extra={"UA": UA, "LMTD": lmtd})
+                           extra={"UA": UA, "LMTD": lmtd,
+                                  "T_sec_out": T_sec_out, "epsilon": epsilon})
