@@ -228,4 +228,13 @@ def run_cycle(config: dict, P_high: float, x: float) -> dict:
         W_compressor      = comp_res.W_dot,
         W_expander        = -exp_res.W_dot,
         Q_recuperator     = -recup_hot.Q_dot,
+        Q_aftercooler     = -ac_res.Q_dot,
+        sec_temps         = dict(
+            ac   = dict(air_in_idx=1, air_out_idx=2,
+                        T_sec_in=ac_cold["T_inlet"],
+                        T_sec_out=ac_res.extra["T_sec_out"]),
+            load = dict(air_in_idx=5, air_out_idx=6,
+                        T_sec_in=lhx_hot["T_inlet"],
+                        T_sec_out=loadhx_res.extra["T_sec_out"]),
+        ),
     )

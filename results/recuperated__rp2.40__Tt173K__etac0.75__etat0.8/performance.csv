@@ -4,6 +4,7 @@ pressure_ratio,2.400000,-
 P_low,101325.00,Pa
 P_high,243180.00,Pa
 Q_cold,10806.5107,W
+Q_aftercooler,40883.3752,W
 W_compressor,43785.7288,W
 W_expander,13702.8734,W
 W_net,30082.8554,W

@@ -139,14 +139,40 @@ def save_results(cfg: dict, out: dict) -> None:
     sp_path = os.path.join(result_dir, "state_points.csv")
     with open(sp_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["state", "T_K", "T_degC", "P_Pa", "P_kPa", "h_J_kg", "h_kJ_kg", "s_J_kgK"])
-        for lbl, s in zip(out["state_labels"], out["states"]):
+
+        sec = out.get("sec_temps", {})
+        load_info = sec.get("load", {})
+        ac_info   = sec.get("ac",   {})
+
+        # 2차측 조회: state 인덱스 → (레이블, T_K)
+        # counter-flow: 2차측 입구는 공기 출구 끝, 2차측 출구는 공기 입구 끝
+        load_by_idx = {}
+        if load_info:
+            load_by_idx[load_info["air_in_idx"]]  = ("load_sec_out", load_info["T_sec_out"])
+            load_by_idx[load_info["air_out_idx"]] = ("load_sec_in",  load_info["T_sec_in"])
+        ac_by_idx = {}
+        if ac_info:
+            ac_by_idx[ac_info["air_in_idx"]]  = ("ac_sec_out", ac_info["T_sec_out"])
+            ac_by_idx[ac_info["air_out_idx"]] = ("ac_sec_in",  ac_info["T_sec_in"])
+
+        w.writerow(["state", "T_K", "T_degC", "P_Pa", "P_kPa", "h_J_kg", "h_kJ_kg", "s_J_kgK",
+                    "load_sec", "load_T_K", "load_T_degC",
+                    "ac_sec",   "ac_T_K",   "ac_T_degC"])
+        for i, (lbl, s) in enumerate(zip(out["state_labels"], out["states"])):
+            load_lbl, load_T = load_by_idx.get(i, ("", None))
+            ac_lbl,   ac_T   = ac_by_idx.get(i,   ("", None))
             w.writerow([
                 lbl,
                 f"{s.T:.4f}", f"{s.T_celsius():.4f}",
                 f"{s.P:.2f}", f"{s.P_kPa():.4f}",
                 f"{s.h:.4f}", f"{s.h_kJ():.4f}",
                 f"{s.s:.4f}",
+                load_lbl,
+                f"{load_T:.4f}"       if load_T is not None else "",
+                f"{load_T-273.15:.4f}" if load_T is not None else "",
+                ac_lbl,
+                f"{ac_T:.4f}"         if ac_T is not None else "",
+                f"{ac_T-273.15:.4f}"  if ac_T is not None else "",
             ])
 
     # performance.csv
@@ -161,6 +187,8 @@ def save_results(cfg: dict, out: dict) -> None:
         if "x_bypass" in out:
             w.writerow(["x_bypass",   f"{out['x_bypass']:.6f}",           "-"])
         w.writerow(["Q_cold",         f"{out['Q_cold']:.4f}",              "W"])
+        if out.get("Q_aftercooler", 0.0) > 0:
+            w.writerow(["Q_aftercooler", f"{out['Q_aftercooler']:.4f}",   "W"])
         w.writerow(["W_compressor",   f"{out['W_compressor']:.4f}",        "W"])
         w.writerow(["W_expander",      f"{out['W_expander']:.4f}",          "W"])
         w.writerow(["W_net",          f"{out['W_net']:.4f}",               "W"])

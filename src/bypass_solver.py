@@ -148,6 +148,8 @@ def solve(config: dict) -> dict:
     W_compressor      = cycle_out["W_compressor"]
     W_expander        = cycle_out["W_expander"]
     Q_recuperator     = cycle_out.get("Q_recuperator", 0.0)
+    Q_aftercooler     = cycle_out.get("Q_aftercooler", 0.0)
+    sec_temps         = cycle_out.get("sec_temps", {})
 
     W_net = W_compressor - W_expander
     COP   = Q_cold / W_net if W_net > 0 else float("nan")
@@ -175,6 +177,8 @@ def solve(config: dict) -> dict:
         W_net             = W_net,
         COP               = COP,
         Q_recuperator     = Q_recuperator,
+        Q_aftercooler     = Q_aftercooler,
+        sec_temps         = sec_temps,
         energy_error      = energy_error,
         result_dir        = result_dir,
     )

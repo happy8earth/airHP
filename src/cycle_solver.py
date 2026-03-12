@@ -150,6 +150,8 @@ def solve(config: dict) -> dict:
         W_compressor      = cycle_out["W_compressor"]
         W_expander         = cycle_out["W_expander"]
         Q_recuperator     = cycle_out.get("Q_recuperator", 0.0)
+        Q_aftercooler     = cycle_out.get("Q_aftercooler", 0.0)
+        sec_temps         = cycle_out.get("sec_temps", {})
     else:
         seq_results = _run_sequence(cycle_module, config, P_high)
         state1 = state_from_TP(config["comp"]["T_inlet"], config["P_low"],
@@ -166,6 +168,8 @@ def solve(config: dict) -> dict:
         W_compressor      = seq_results[0].W_dot    # 양수
         W_expander         = -seq_results[2].W_dot   # 음수→양수
         Q_recuperator     = 0.0
+        Q_aftercooler     = 0.0
+        sec_temps         = {}
 
     # 성능 지표
     W_net = W_compressor - W_expander
@@ -191,6 +195,8 @@ def solve(config: dict) -> dict:
         W_net            = W_net,
         COP              = COP,
         Q_recuperator    = Q_recuperator,
+        Q_aftercooler    = Q_aftercooler,
+        sec_temps        = sec_temps,
         energy_error     = energy_error,
         result_dir       = result_dir,
     )
