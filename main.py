@@ -193,12 +193,11 @@ def save_results(cfg: dict, out: dict) -> None:
         w.writerow(["W_expander",      f"{out['W_expander']:.4f}",          "W"])
         w.writerow(["W_net",          f"{out['W_net']:.4f}",               "W"])
         w.writerow(["COP",            f"{out['COP']:.6f}",                 "-"])
-        if out.get("Q_recuperator", 0.0) > 0:
-            w.writerow(["Q_recuperator", f"{out['Q_recuperator']:.4f}",    "W"])
+        w.writerow(["Q_recuperator", f"{out.get('Q_recuperator', 0.0):.4f}", "W"])
         _load_sec = out.get("sec_temps", {}).get("load", {})
         if _load_sec:
-            w.writerow(["T_load_sec_out", f"{_load_sec['T_sec_out']:.4f}", "K"])
-            w.writerow(["T_load_sec_in",  f"{_load_sec['T_sec_in']:.4f}",  "K"])
+            w.writerow(["T_load_sec_out", f"{_load_sec['T_sec_out']-273.15:.4f}", "degC"])
+            w.writerow(["T_load_sec_in",  f"{_load_sec['T_sec_in'] -273.15:.4f}", "degC"])
         w.writerow(["energy_error",   f"{out['energy_error']:.2e}",        "-"])
         w.writerow(["mass_flow",      f"{cfg['mass_flow']:.4f}",           "kg/s"])
 
