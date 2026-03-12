@@ -1,0 +1,12 @@
+metric,value,unit
+cycle,simple_brayton,-
+pressure_ratio,23.790209,-
+P_low,101325.00,Pa
+P_high,2410542.95,Pa
+Q_cold,8542.7267,W
+W_compressor,147576.3778,W
+W_expander,60457.1044,W
+W_net,87119.2734,W
+COP,0.098058,-
+energy_error,6.80e-05,-
+mass_flow,0.3820,kg/s

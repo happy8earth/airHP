@@ -10,6 +10,8 @@ components/hx_ua_lmtd.py
 
 공개 API
   ua_scale(UA_rated, m_dot, m_dot_rated) -> float
+  ua_scale_two_side(htc_hot, area_hot, m_dot_hot, m_dot_hot_rated,
+                    htc_cold, area_cold, m_dot_cold, m_dot_cold_rated) -> float
   solve_counterflow(...) -> (T_hot_out, T_cold_out, Q_dot, LMTD)
 """
 
@@ -44,6 +46,22 @@ def ua_scale(UA_rated: float, m_dot: float, m_dot_rated: float) -> float:
     UA = UA_rated * (m_dot / m_dot_rated)^0.8
     """
     return UA_rated * (m_dot / m_dot_rated) ** 0.8
+
+
+def ua_scale_two_side(
+    htc_hot: float, area_hot: float, m_dot_hot: float, m_dot_hot_rated: float,
+    htc_cold: float, area_cold: float, m_dot_cold: float, m_dot_cold_rated: float,
+    n: float = 0.8,
+) -> float:
+    """양측 독립 스케일링으로 UA 산출 (h+A breakdown 기반).
+
+    hA_hot  = htc_hot  * area_hot  * (m_dot_hot  / m_dot_hot_rated)^n
+    hA_cold = htc_cold * area_cold * (m_dot_cold / m_dot_cold_rated)^n
+    UA      = 1 / (1/hA_hot + 1/hA_cold)
+    """
+    hA_hot  = htc_hot  * area_hot  * (m_dot_hot  / m_dot_hot_rated)  ** n
+    hA_cold = htc_cold * area_cold * (m_dot_cold / m_dot_cold_rated) ** n
+    return 1.0 / (1.0 / hA_hot + 1.0 / hA_cold)
 
 
 # ─────────────────────────────────────────────

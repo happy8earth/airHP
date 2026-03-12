@@ -21,8 +21,15 @@ hx_aftercooler:
   dP: 0                      # [Pa]  압력 손실 (0 = 현재 무시)
 
 hx_load:
-  UA_rated: 1301.01          # [W/K]  정격 UA
-  m_dot_rated: 0.382         # [kg/s]  정격 1차측(IM-7) 유량
-  T_secondary: 197.65        # [K]  (-75.5°C)  IM-7 입구 온도 (냉동 공간)
-  m_dot_secondary: 0.827     # [kg/s]  IM-7 유량
-  dP: 0                      # [Pa]  압력 손실 (0 = 현재 무시)
+  # UA_rated = 1301.01 W/K   derived: 1/(1/hA_hot + 1/hA_cold)
+  # htc_rated: 50:50 열저항 가정으로 산출 (카탈로그 OHTC → h 역산)
+  hotside:                    # IM-7 (냉동 공간)
+    htc_rated: 273.3          # [W/m²K]  = 2×UA / A  (카탈로그 OHTC: 136.64)
+    area: 9.52                # [m²]  카탈로그
+    m_dot_rated: 0.827        # [kg/s]  정격 IM-7 유량
+    T_inlet: 197.65           # [K]  (-75.5°C)  IM-7 입구 온도 (냉동 공간)
+  coldside:                   # Air (working fluid)
+    htc_rated: 107.2          # [W/m²K]  = 2×UA / A  (카탈로그 OHTC: 53.57)
+    area: 24.28               # [m²]  카탈로그
+    m_dot_rated: 0.382        # [kg/s]  정격 Air 유량
+  dP: 0                       # [Pa]  압력 손실 (0 = 현재 무시)

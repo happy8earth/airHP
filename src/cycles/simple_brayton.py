@@ -60,12 +60,10 @@ def run_cycle(config: dict, P_high: float) -> dict:
     ac_T_sec       = ac["T_secondary"]
     ac_m_dot_sec   = ac["m_dot_secondary"]
 
-    # Load HX UA 파라미터
-    lhx = config["hx_load"]
-    lhx_UA_rated    = lhx["UA_rated"]
-    lhx_m_dot_rated = lhx["m_dot_rated"]
-    lhx_T_sec       = lhx["T_secondary"]
-    lhx_m_dot_sec   = lhx["m_dot_secondary"]
+    # Load HX 파라미터 (hotside/coldside breakdown)
+    lhx      = config["hx_load"]
+    lhx_hot  = lhx["hotside"]
+    lhx_cold = lhx["coldside"]
 
     # T1 초기 추정값
     T1 = config["comp"]["T_inlet"]
@@ -94,9 +92,15 @@ def run_cycle(config: dict, P_high: float) -> dict:
         # Load HX: 4 → 1  (UA·LMTD, hot=IM-7, cold=Air)
         lhx_res = hx_load.run(
             state4,
-            UA_rated=lhx_UA_rated, m_dot=m_dot,
-            m_dot_rated=lhx_m_dot_rated,
-            T_sec=lhx_T_sec, m_dot_sec=lhx_m_dot_sec,
+            htc_hot_rated=lhx_hot["htc_rated"],
+            area_hot=lhx_hot["area"],
+            m_dot_hot=lhx_hot["m_dot_rated"],
+            m_dot_hot_rated=lhx_hot["m_dot_rated"],
+            htc_cold_rated=lhx_cold["htc_rated"],
+            area_cold=lhx_cold["area"],
+            m_dot_cold=m_dot,
+            m_dot_cold_rated=lhx_cold["m_dot_rated"],
+            T_sec=lhx_hot["T_inlet"],
         )
         T1_new = lhx_res.state_out.T
 

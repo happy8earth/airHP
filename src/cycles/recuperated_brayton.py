@@ -77,12 +77,10 @@ def run_cycle(config: dict, P_high: float) -> dict:
     ac_T_sec       = ac["T_secondary"]
     ac_m_dot_sec   = ac["m_dot_secondary"]
 
-    # Load HX UA params
-    lhx = config["hx_load"]
-    lhx_UA_rated    = lhx["UA_rated"]
-    lhx_m_dot_rated = lhx["m_dot_rated"]
-    lhx_T_sec       = lhx["T_secondary"]
-    lhx_m_dot_sec   = lhx["m_dot_secondary"]
+    # Load HX 파라미터 (hotside/coldside breakdown)
+    lhx      = config["hx_load"]
+    lhx_hot  = lhx["hotside"]
+    lhx_cold = lhx["coldside"]
 
     for _ in range(30):
         # State 1: compressor inlet
@@ -106,9 +104,15 @@ def run_cycle(config: dict, P_high: float) -> dict:
             _s4 = state_from_TP(T4_K, P_high, fluid)
             _s5 = expander.run(_s4, P_out=P_low, eta_t=eta_t, m_dot=m_dot).state_out
             _lhx = hx_load.run(_s5,
-                               UA_rated=lhx_UA_rated, m_dot=m_dot,
-                               m_dot_rated=lhx_m_dot_rated,
-                               T_sec=lhx_T_sec, m_dot_sec=lhx_m_dot_sec)
+                               htc_hot_rated=lhx_hot["htc_rated"],
+                               area_hot=lhx_hot["area"],
+                               m_dot_hot=lhx_hot["m_dot_rated"],
+                               m_dot_hot_rated=lhx_hot["m_dot_rated"],
+                               htc_cold_rated=lhx_cold["htc_rated"],
+                               area_cold=lhx_cold["area"],
+                               m_dot_cold=m_dot,
+                               m_dot_cold_rated=lhx_cold["m_dot_rated"],
+                               T_sec=lhx_hot["T_inlet"])
             _s6 = _lhx.state_out
             _recup_hot, _ = hx_recuperator.run(state3, _s6,
                                UA_rated=rc_UA_rated, m_dot=m_dot, m_dot_rated=rc_m_dot_rated)
@@ -130,9 +134,15 @@ def run_cycle(config: dict, P_high: float) -> dict:
         # Load HX: 5 -> 6  (UA·LMTD, hot=IM-7, cold=Air)
         loadhx_res = hx_load.run(
             state5,
-            UA_rated=lhx_UA_rated, m_dot=m_dot,
-            m_dot_rated=lhx_m_dot_rated,
-            T_sec=lhx_T_sec, m_dot_sec=lhx_m_dot_sec,
+            htc_hot_rated=lhx_hot["htc_rated"],
+            area_hot=lhx_hot["area"],
+            m_dot_hot=lhx_hot["m_dot_rated"],
+            m_dot_hot_rated=lhx_hot["m_dot_rated"],
+            htc_cold_rated=lhx_cold["htc_rated"],
+            area_cold=lhx_cold["area"],
+            m_dot_cold=m_dot,
+            m_dot_cold_rated=lhx_cold["m_dot_rated"],
+            T_sec=lhx_hot["T_inlet"],
         )
         state6 = loadhx_res.state_out
 

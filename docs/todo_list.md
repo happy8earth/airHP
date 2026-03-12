@@ -1,81 +1,88 @@
 # TODO List — Reverse Brayton Cryogenic Refrigerator
 
+---
+
 ## 우선순위 높음
 
-### [ ] 1. HX 모델 전환: T_out 고정 / ε-NTU → UA·LMTD
+### [ ] A. Bypass 사이클 구현 — Topology A (Mixer @ Expander 전단)
 
-**전환 순서**: Aftercooler → Load HX → Recuperator (하나씩 순차 적용 후 검증)
+**목표**
+압축기 토출부(State 2)에서 추기율 `x`만큼 분기하여 Expander 입구에서 혼합하는 사이클 구현.
+**핵심 설계 문제**: Load HX 2차측 출구온도(`T_sec_out`) 목표값을 만족하는 데 필요한 추기율 `x`를 역산.
 
-**공통 사항**
-
-2차측 유체: aftercooler = 물(water), hx_load = IM-7, hx_recup = 공기(대칭)
-
-UA scaling (1차측만):
+**배경 — Load HX 2차측 열균형**
 ```
-UA = UA_rated × (m_dot / m_dot_rated)^0.8
+Q_load = ṁ_sec × Cp_sec × (T_sec_in − T_sec_out)
+```
+- `T_sec_out` (목표), `T_sec_in`, `ṁ_sec` → `Q_load` 결정
+- Bypass는 Expander 출구온도(T_air_in)를 조절 → T_sec_out 제어
+- bypass 부족 → 냉매 과냉 → T_sec_out 과도 하강
+- bypass 과다 → 냉매 불충분 냉각 → T_sec_out 목표 미달
+
+**DOF 분석 결론**
+
+| 미지수 | {T1, T4, x} = 3 | (P_high는 pressure_ratio로 고정) |
+|--------|-----------------|----------------------------------|
+| 제약 방정식 | Load HX UA-LMTD (⑥) + Recuperator 에너지 (⑦) + Recuperator UA-LMTD (⑧) = 3 |
+| **DOF** | **= 0** ✓ 완전 결정계 |
+
+- `pressure_ratio` 고정값 지정 → `P_high = P_low × r_p` 고정 → DOF 닫힘
+- Load HX는 **순방향(forward) UA-LMTD 모드** 유지: T_sec_in 고정, T_sec_out을 출력으로 계산
+- brentq는 x에 대해서만 수행: `T_sec_out_cycle(x) − T_sec_out_target = 0`
+- `T_outlet_target` 불필요 (기존 recuperated 사이클의 outer brentq 조건은 bypass 사이클에서 사용 안 함)
+
+**새 토폴로지**
+```
+State 2 ─(1-x)→ [Aftercooler] → [Recup.hot] → State 4 ─┐
+         └─(x)──────────────────────────────── State 2  ─┴→ [Mixer] → State 4m → [Expander] → [LoadHX] → [Recup.cold] → State 1
 ```
 
-Catalog rated 값 (YAML 기입 완료):
-| HX | UA_rated [W/K] | m_dot_rated [kg/s] | T_sec [K] | m_dot_sec [kg/s] |
-|----|---|----|----|----|
-| hx_aftercooler | 870 | 0.382 | 291.15 | 0.38 |
-| hx_load | 1301.01 | 0.382 | 197.65 | 0.827 |
-| hx_recup | 5102.04 | 0.382 | — (대칭) | — |
+**세부 액션**
 
-공용 solver (`hx_ua_lmtd.py`) — Aftercooler 전환 시 함께 작성:
-```python
-# src/components/hx_ua_lmtd.py
-def ua_scale(UA_rated, m_dot, m_dot_rated) -> float
-def solve_counterflow(UA, state_hot_in, state_cold_in,
-                      m_dot_hot, m_dot_cold,
-                      fluid_cold="Air") -> (T_hot_out, T_cold_out, Q_dot, LMTD)
-# 내부: brentq on T_hot_out
-# Residual: Q_dot(T_hot_out) - UA * LMTD(T_hot_out) = 0
-```
+**A-1. `src/components/splitter.py` 신규 작성**
+- 입력: `state_in`, `x` (bypass 분율), `m_dot`
+- 출력: `(state_main, m_dot_main, state_bypass, m_dot_bypass)`
+- 물리: 질량/에너지 보존, 양측 상태 동일(압력·엔탈피 변화 없음)
 
----
+**A-2. `src/components/mixer.py` 신규 작성**
+- 입력: `state_a`, `m_dot_a`, `state_b`, `m_dot_b`, `fluid`
+- 출력: `ComponentResult` (혼합 출구 상태)
+- 물리: `h_mix = (ṁ_a·h_a + ṁ_b·h_b) / (ṁ_a + ṁ_b)`, 같은 압력 가정
 
-### [x] 1-1. Aftercooler UA·LMTD 전환
-*(가장 단순 — 2차측 물, Cp 상수, 순환 의존성 없음)*
+**A-3. `src/components/hx_recuperator.py` 수정**
+- 현재: Hot/Cold 양측 `m_dot` 동일 가정
+- 변경: `m_dot_hot`, `m_dot_cold` 독립 인자 추가
+- UA 스케일링: 각 측 독립적으로 `(m_dot/m_dot_rated)^0.8` 적용 후 평균 또는 최소값 검토
+- 기존 Recuperated 사이클 호환성 유지 (기본값 `m_dot_hot = m_dot_cold = m_dot`)
 
-- **[A]** YAML: `UA_rated, m_dot_rated, T_secondary, m_dot_secondary` 추가 (`T_outlet` 미사용)
-- **[B]** `hx_ua_lmtd.py` 기존 파일 그대로 사용 (이미 구현 완료)
-- **[C]** `hx_aftercooler.py` 리팩터 완료 — `solve_counterflow` 호출로 교체
-- **[D]** `simple_brayton.py`: UA 파라미터 전달로 교체 완료
-- **[E]** `recuperated_brayton.py`: `T3_set` 제거, UA 파라미터 전달 완료
-- **[F]** `main.py` 출력 업데이트 — 추후 처리
-- 검증 완료: Simple T3=308 K, Recuperated T3=305 K (물리적 타당), energy_error < 1.2e-3
+**A-4. `src/cycles/bypass_a_brayton.py` 신규 작성**
+- `run_cycle(config, P_high, x)` 시그니처
+- 외부 T1 고정점 반복 + 내부 brentq (T4 수렴)
+- `T4m` (혼합 후 Expander 입구) = Mixer(State 2, State 4, x) 결과
+- Recuperator: `m_dot_hot = (1-x)·ṁ`, `m_dot_cold = ṁ`
+- Aftercooler: `m_dot = (1-x)·ṁ`
+- Load HX: **순방향 UA·LMTD 모드** — `T_sec_in` 고정, `T_sec_out` 출력 (기존 recuperated 방식 유지)
+- `T_outlet_target` 미사용 — `pressure_ratio`로 P_high가 이미 고정되므로 outer brentq 불필요
+- 반환값에 `T_sec_out` (Load HX 2차측 출구온도) 포함
 
----
+**A-5. `configs/bypass_a_baseline.yaml` 신규 작성**
+- Recuperated baseline 기반
+- `pressure_ratio`: **고정값 필수** (null 불가) — DOF를 닫는 핵심 파라미터
+- `expander.T_outlet_target`: bypass 사이클에서는 참고값으로만 존재 (수렴 기준 아님)
+- `hx_load` 섹션에 `T_sec_out_target` 파라미터 추가 (역산 목표값, bypass_solver가 사용)
+- `bypass.x`: 역산 결과로 출력 (YAML 입력값 아님)
 
-### [x] 1-2. Load HX UA·LMTD 전환
-*(2차측 IM-7, Cp 가변 — im7_properties 연동)*
+**A-6. 역산 Solver: T_sec_out_target → x**
+- 별도 `bypass_solver.py` 또는 `cycle_solver.py` 확장으로 구현
+- `P_high = P_low × pressure_ratio` 로 고정 (DOF 닫기)
+- 내부 brentq: `x` ∈ [0, x_max] 에서 `T_sec_out_cycle(x) − T_sec_out_target = 0` 수렴
+  - `T_sec_out_cycle(x)`: `bypass_a_brayton.run_cycle(config, P_high, x)` 반환값
+- 수렴 후 출력: 필요 추기율 `x`, COP, W_net, Q_load, 전체 상태점
 
-- **[A]** YAML: `hx_load.UA_rated=1301.01, m_dot_rated=0.382, T_secondary=197.65, m_dot_secondary=0.827` 추가 (Simple + Recuperated)
-- **[B]** `hx_load.py` 리팩터 — hot=IM-7, cold=Air, `solve_counterflow` 호출
-  - T_sec ≤ T_air_in 시 Q_dot=0 반환 (물리적 상한 처리)
-- **[C]** `simple_brayton.py`: SEQUENCE → `run_cycle` 전환, T1 fixed-point iteration 내장
-- **[D]** `recuperated_brayton.py`: Q_load 계산 → `hx_load.run()` 교체 (inner brentq 내부 포함)
-  - `recuperated_baseline.yaml` Q_load 항목은 미사용 상태로 잔류 (TODO 주석)
-- **[E]** `cycle_solver.py`: brentq 탐색 상한 20 atm → 50 atm 확장
-- **[F]** `simple_baseline.yaml`: `pressure_ratio: null` (T5=173 K 달성에 rp≈24.4 필요)
-  - 리큐퍼레이터 덕분에 recuperated는 rp=2.4에서도 T5=179.9 K 달성 가능
-- 검증 완료:
-  - Simple: T1=197.19 K, T5=173.15 K, Q_cold=9.26 kW, COP=0.103, energy_error=1.6e-4
-  - Recuperated: T5=179.9 K, T6=197.32 K, Q_cold=6.71 kW, COP=0.253, energy_error=2.7e-3
-- **남은 작업**: `main.py` 출력 추가 (1-1[F]와 함께), `recuperated_baseline.yaml` Q_load 항목 제거
-
----
-
-### [x] 1-3. Recuperator UA·LMTD 전환
-*(양측 모두 작동유체 Air — CoolProp, 서로 다른 압력)*
-
-- **[A]** YAML: `hx_recup.effectiveness` 주석 처리 → `UA_rated=5102.04, m_dot_rated=0.382` 추가
-- **[B]** `hx_recuperator.py` 리팩터 — `solve_counterflow(Air/P_high, Air/P_low)` 호출
-  - UA scaling: `UA = UA_rated × (m_dot / m_dot_rated)^0.8` (양측 대칭)
-- **[C]** `recuperated_brayton.py`: `effectiveness` 인자 → UA 인자로 교체 (inner brentq 포함)
-- 검증 완료: T1=301.33 K, T4=205.13 K, T5=168.48 K, T6=197.10 K, Q_cold=11.02 kW, COP=0.368, Q_recup=40.05 kW, energy_error=5.8e-4
-- **남은 작업**: `main.py` 출력 추가 (1-1[F]와 함께), YAML effectiveness 항목 제거
+**A-7. T_sec_out_target 스윕 + 시각화**
+- `visualize.py`에 `sweep_T_sec_out(config, T_targets)` 함수 추가
+- 출력: `x`, COP, W_net, T_expander_outlet vs. `T_sec_out_target` 그래프
+- 결과 CSV 저장: `results/<run>/x_vs_T_sec_out.csv`
 
 ---
 
@@ -113,6 +120,33 @@ P_out = P_in - dP
 
 ## 우선순위 중간
 
+### [ ] B. Bypass 사이클 구현 — Topology B (Mixer @ Expander 후단)
+
+**목표**
+추기 스트림을 교축(등엔탈피 팽창) 후 Expander 출구에서 혼합하는 사이클 구현.
+
+**새 토폴로지**
+```
+State 2 ─(1-x)→ [Aftercooler] → [Recup.hot] → [Expander] → State 5 ─┐
+         └─(x)──→ [Throttle P_high→P_low] ──────────────── State 2t ─┴→ [Mixer] → State 5m → [LoadHX] → [Recup.cold] → State 1
+```
+
+**세부 액션**
+
+**B-1. `src/components/throttle.py` 신규 작성**
+- 물리: 등엔탈피 교축 (`h_out = h_in`, `P_out` 지정)
+- 출력: `ComponentResult`
+
+**B-2. `src/cycles/bypass_b_brayton.py` 신규 작성**
+- Expander는 `(1-x)·ṁ` 처리
+- Mixer: throttle 출구(State 2t) + Expander 출구(State 5) → State 5m
+- LoadHX, Recuperator cold side: 전체 유량 `ṁ` 처리
+
+**B-3. Topology A vs B 비교 분석**
+- 동일 추기율 x에서 양 토폴로지 성능 비교 그래프
+
+---
+
 ### [ ] 3. 파라미터 스윕 자동화 개선
 
 **현재 상태**
@@ -141,7 +175,8 @@ Simple / Recuperated 두 사이클 고정.
 
 - `tests/test_compressor.py` — 이상기체 등엔트로피 관계 검증
 - `tests/test_expander.py`
-- `tests/test_recuperator.py` — 에너지 균형 검증
+- `tests/test_recuperator.py` — 에너지 균형 검증 (불균형 유량 케이스 포함)
+- `tests/test_mixer.py` — 에너지 보존 검증
 - `tests/test_cycle_solver.py` — Simple / Recuperated 결과 회귀 테스트
 
 ### [ ] 6. 작동 유체 확장
@@ -171,3 +206,7 @@ Air 고정 (CoolProp `"Air"` pseudo-pure).
 - [x] YAML 계층 구조 리팩토링 (comp/expander/hx_aftercooler/hx_load/hx_recup)
 - [x] 컴포넌트 명칭 통일: `hx_aftercooler`, `hx_load`, `hx_recuperator` (파일명 포함)
 - [x] Recuperated Load HX: Q_load 기반 State 6 계산 (`hx_load.Q_load` YAML 파라미터)
+- [x] HX 모델 전환: T_out 고정 → UA·LMTD (`hx_ua_lmtd.py` 공용 solver, UA scaling `(m_dot/m_dot_rated)^0.8`)
+  - Aftercooler: 2차측 물, Simple T3=308 K / Recuperated T3=305 K, energy_error < 1.2e-3
+  - Load HX: 2차측 IM-7 (Cp 가변), Simple T5=173.15 K / Recuperated T5=179.9 K
+  - Recuperator: 양측 Air, T5=168.48 K, Q_cold=11.02 kW, COP=0.368, energy_error=5.8e-4
