@@ -84,6 +84,14 @@ State 2 ─(1-x)→ [Aftercooler] → [Recup.hot] → State 4 ─┐
 - 출력: `x`, COP, W_net, T_expander_outlet vs. `T_sec_out_target` 그래프
 - 결과 CSV 저장: `results/<run>/x_vs_T_sec_out.csv`
 
+**A-8. `src/components/hx_load.py` — ε, T_sec_out 출력 추가**
+- 현재: `extra={"UA": UA, "LMTD": lmtd}` 만 반환; `_T_sec_out` 버려짐
+- 추가: `T_sec_out` (IM-7 출구온도), ε (effectiveness) 계산 후 `extra`에 포함
+  - `ε = Q_actual / Q_max`, `Q_max = C_min × (T_sec_in − T_air_in)`
+  - `C_hot = ṁ_IM7 × Cp_IM7`, `C_cold = ṁ_air × Cp_air`, `C_min = min(C_hot, C_cold)`
+- 사이클 출력(`run_cycle` 반환 dict)에 `T_sec_out`, `epsilon_load` 키 추가
+- 역산 solver(A-6)에서 `T_sec_out_cycle(x)` 로 직접 사용
+
 ---
 
 ### [ ] 2. 열교환기 압력 손실 모델링 (Pressure Drop)
@@ -210,3 +218,8 @@ Air 고정 (CoolProp `"Air"` pseudo-pure).
   - Aftercooler: 2차측 물, Simple T3=308 K / Recuperated T3=305 K, energy_error < 1.2e-3
   - Load HX: 2차측 IM-7 (Cp 가변), Simple T5=173.15 K / Recuperated T5=179.9 K
   - Recuperator: 양측 Air, T5=168.48 K, Q_cold=11.02 kW, COP=0.368, energy_error=5.8e-4
+- [x] YAML HX 파라미터 hotside/coldside 분리 (`UA_rated` → `htc_rated`, `area`, `m_dot_rated` per side)
+  - `configs/recuperated_baseline.yaml`, `configs/simple_baseline.yaml` 적용
+  - `UA = 1/(1/hA_hot + 1/hA_cold)`, 각 측 독립 HTC·면적 지정 가능
+  - `src/cycles/simple_brayton.py`, `src/cycles/recuperated_brayton.py` 호출 인자 갱신
+  - A-3 (`hx_recuperator.py` 독립 유량) 수행을 위한 YAML 구조 준비 완료
