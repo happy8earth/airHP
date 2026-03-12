@@ -62,20 +62,18 @@ def run_cycle(config: dict, P_high: float) -> dict:
     eta_t = config["expander"]["eta_isen"]
     P_low = config["P_low"]
 
-    # Recuperator UA 파라미터
-    rc = config["hx_recup"]
-    rc_UA_rated    = rc["UA_rated"]
-    rc_m_dot_rated = rc["m_dot_rated"]
+    # Recuperator 파라미터 (hotside/coldside breakdown)
+    rc      = config["hx_recup"]
+    rc_hot  = rc["hotside"]
+    rc_cold = rc["coldside"]
 
     # T1: compressor inlet (recuperator cold outlet) initial guess
     T1 = config["comp"]["T_inlet"]
 
-    # Aftercooler UA params
-    ac = config["hx_aftercooler"]
-    ac_UA_rated    = ac["UA_rated"]
-    ac_m_dot_rated = ac["m_dot_rated"]
-    ac_T_sec       = ac["T_secondary"]
-    ac_m_dot_sec   = ac["m_dot_secondary"]
+    # Aftercooler 파라미터 (hotside/coldside breakdown)
+    ac      = config["hx_aftercooler"]
+    ac_hot  = ac["hotside"]
+    ac_cold = ac["coldside"]
 
     # Load HX 파라미터 (hotside/coldside breakdown)
     lhx      = config["hx_load"]
@@ -93,9 +91,15 @@ def run_cycle(config: dict, P_high: float) -> dict:
         # Aftercooler: 2 -> 3  (UA·LMTD)
         hothx_res = hx_aftercooler.run(
             state2,
-            UA_rated=ac_UA_rated, m_dot=m_dot,
-            m_dot_rated=ac_m_dot_rated,
-            T_sec=ac_T_sec, m_dot_sec=ac_m_dot_sec,
+            htc_hot_rated=ac_hot["htc_rated"],
+            area_hot=ac_hot["area"],
+            m_dot_hot=m_dot,
+            m_dot_hot_rated=ac_hot["m_dot_rated"],
+            htc_cold_rated=ac_cold["htc_rated"],
+            area_cold=ac_cold["area"],
+            m_dot_cold=ac_cold["m_dot_rated"],
+            m_dot_cold_rated=ac_cold["m_dot_rated"],
+            T_sec=ac_cold["T_inlet"],
         )
         state3 = hothx_res.state_out
 
@@ -115,7 +119,13 @@ def run_cycle(config: dict, P_high: float) -> dict:
                                T_sec=lhx_hot["T_inlet"])
             _s6 = _lhx.state_out
             _recup_hot, _ = hx_recuperator.run(state3, _s6,
-                               UA_rated=rc_UA_rated, m_dot=m_dot, m_dot_rated=rc_m_dot_rated)
+                               htc_hot_rated=rc_hot["htc_rated"],
+                               area_hot=rc_hot["area"],
+                               m_dot_hot_rated=rc_hot["m_dot_rated"],
+                               htc_cold_rated=rc_cold["htc_rated"],
+                               area_cold=rc_cold["area"],
+                               m_dot_cold_rated=rc_cold["m_dot_rated"],
+                               m_dot=m_dot)
             return T4_K - _recup_hot.state_out.T
 
         T4_lo, T4_hi = 140.0, state3.T
@@ -149,7 +159,13 @@ def run_cycle(config: dict, P_high: float) -> dict:
         # Recuperator: hot (3->4) and cold (6->1)  (UA·LMTD)
         recup_hot, recup_cold = hx_recuperator.run(
             state3, state6,
-            UA_rated=rc_UA_rated, m_dot=m_dot, m_dot_rated=rc_m_dot_rated,
+            htc_hot_rated=rc_hot["htc_rated"],
+            area_hot=rc_hot["area"],
+            m_dot_hot_rated=rc_hot["m_dot_rated"],
+            htc_cold_rated=rc_cold["htc_rated"],
+            area_cold=rc_cold["area"],
+            m_dot_cold_rated=rc_cold["m_dot_rated"],
+            m_dot=m_dot,
         )
 
         T1_new = recup_cold.state_out.T

@@ -53,12 +53,10 @@ def run_cycle(config: dict, P_high: float) -> dict:
     eta_t = config["expander"]["eta_isen"]
     P_low = config["P_low"]
 
-    # Aftercooler UA 파라미터
-    ac = config["hx_aftercooler"]
-    ac_UA_rated    = ac["UA_rated"]
-    ac_m_dot_rated = ac["m_dot_rated"]
-    ac_T_sec       = ac["T_secondary"]
-    ac_m_dot_sec   = ac["m_dot_secondary"]
+    # Aftercooler 파라미터 (hotside/coldside breakdown)
+    ac      = config["hx_aftercooler"]
+    ac_hot  = ac["hotside"]
+    ac_cold = ac["coldside"]
 
     # Load HX 파라미터 (hotside/coldside breakdown)
     lhx      = config["hx_load"]
@@ -79,9 +77,15 @@ def run_cycle(config: dict, P_high: float) -> dict:
         # Aftercooler: 2 → 3  (UA·LMTD)
         ac_res = hx_aftercooler.run(
             state2,
-            UA_rated=ac_UA_rated, m_dot=m_dot,
-            m_dot_rated=ac_m_dot_rated,
-            T_sec=ac_T_sec, m_dot_sec=ac_m_dot_sec,
+            htc_hot_rated=ac_hot["htc_rated"],
+            area_hot=ac_hot["area"],
+            m_dot_hot=m_dot,
+            m_dot_hot_rated=ac_hot["m_dot_rated"],
+            htc_cold_rated=ac_cold["htc_rated"],
+            area_cold=ac_cold["area"],
+            m_dot_cold=ac_cold["m_dot_rated"],
+            m_dot_cold_rated=ac_cold["m_dot_rated"],
+            T_sec=ac_cold["T_inlet"],
         )
         state3 = ac_res.state_out
 

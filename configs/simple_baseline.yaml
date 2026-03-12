@@ -14,11 +14,17 @@ expander:
 
 hx_aftercooler:
   T_outlet: 298.15           # [K]  (25°C)  TODO 1-1: UA·LMTD 전환 후 제거
-  UA_rated: 870              # [W/K]  정격 UA
-  m_dot_rated: 0.382         # [kg/s]  정격 1차측(Air) 유량
-  T_secondary: 291.15        # [K]  (18°C)  냉각수 입구 온도
-  m_dot_secondary: 0.38      # [kg/s]  냉각수 유량
-  dP: 0                      # [Pa]  압력 손실 (0 = 현재 무시)
+  # UA_rated = 870 W/K   derived: 1/(1/hA_hot + 1/hA_cold)
+  hotside:                    # Air (working fluid)
+    htc_rated: 152.5          # [W/m²K]  카탈로그
+    area: 11.405              # [m²]  카탈로그
+    m_dot_rated: 0.382        # [kg/s]  정격 Air 유량
+  coldside:                   # water (냉각수)
+    htc_rated: 459.0          # [W/m²K]  카탈로그
+    area: 3.791               # [m²]  카탈로그
+    m_dot_rated: 0.380        # [kg/s]  정격 냉각수 유량
+    T_inlet: 291.15           # [K]  (18°C)  냉각수 입구 온도
+  dP: 0                       # [Pa]  압력 손실 (0 = 현재 무시)
 
 hx_load:
   # UA_rated = 1301.01 W/K   derived: 1/(1/hA_hot + 1/hA_cold)

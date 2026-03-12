@@ -18,22 +18,30 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from properties import ThermodynamicState, ComponentResult, state_from_TP
-from components.hx_ua_lmtd import ua_scale, solve_counterflow
+from components.hx_ua_lmtd import ua_scale_two_side, solve_counterflow
 
 
 def run(state_hot_in: ThermodynamicState,
         state_cold_in: ThermodynamicState,
-        UA_rated: float,
-        m_dot: float,
-        m_dot_rated: float) -> tuple[ComponentResult, ComponentResult]:
+        htc_hot_rated:    float,
+        area_hot:         float,
+        m_dot_hot_rated:  float,
+        htc_cold_rated:   float,
+        area_cold:        float,
+        m_dot_cold_rated: float,
+        m_dot:            float) -> tuple[ComponentResult, ComponentResult]:
     """
     Parameters
     ----------
-    state_hot_in  : ThermodynamicState  고압(hot) 스트림 입구 (State 3)
-    state_cold_in : ThermodynamicState  저압(cold) 스트림 입구 (State 6)
-    UA_rated      : float               정격 UA [W/K]
-    m_dot         : float               질량 유량 [kg/s] (양측 동일)
-    m_dot_rated   : float               정격 질량 유량 [kg/s]
+    state_hot_in      : ThermodynamicState  고압(hot) 스트림 입구 (State 3)
+    state_cold_in     : ThermodynamicState  저압(cold) 스트림 입구 (State 6)
+    htc_hot_rated     : float  정격 hot side HTC [W/m²K]  (50:50 가정)
+    area_hot          : float  hot side 면적 [m²]
+    m_dot_hot_rated   : float  정격 hot side 유량 [kg/s]
+    htc_cold_rated    : float  정격 cold side HTC [W/m²K]  (50:50 가정)
+    area_cold         : float  cold side 면적 [m²]
+    m_dot_cold_rated  : float  정격 cold side 유량 [kg/s]
+    m_dot             : float  실제 질량 유량 [kg/s] (양측 동일)
 
     Returns
     -------
@@ -47,7 +55,10 @@ def run(state_hot_in: ThermodynamicState,
             f"<= T_cold_in ({state_cold_in.T:.2f} K)"
         )
 
-    UA = ua_scale(UA_rated, m_dot, m_dot_rated)
+    UA = ua_scale_two_side(
+        htc_hot_rated, area_hot,  m_dot, m_dot_hot_rated,
+        htc_cold_rated, area_cold, m_dot, m_dot_cold_rated,
+    )
 
     T_hot_out, T_cold_out, Q_cf, lmtd = solve_counterflow(
         UA,
