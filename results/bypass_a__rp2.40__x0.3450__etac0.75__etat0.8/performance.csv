@@ -1,0 +1,14 @@
+metric,value,unit
+cycle,bypass_a_brayton,-
+pressure_ratio,2.400000,-
+P_low,101325.00,Pa
+P_high,243180.00,Pa
+x_bypass,0.344979,-
+Q_cold,10254.7953,W
+W_compressor,45198.1967,W
+W_expander,23460.0094,W
+W_net,21738.1873,W
+COP,0.471741,-
+T_sec_out,303.1500,K
+energy_error,5.84e-04,-
+mass_flow,0.3820,kg/s

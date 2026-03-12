@@ -29,12 +29,12 @@ hx_load:
     htc_rated: 273.3          # [W/m²K]
     area: 9.52                # [m²]
     m_dot_rated: 0.827        # [kg/s]  정격 IM-7 유량
-    T_inlet: 197.65           # [K]  (-75.5°C)  IM-7 입구 온도 (냉동 공간)
+    T_inlet: 313.15           # [K]  (197.65, -75.5°C)  IM-7 입구 온도 (냉동 공간)
   coldside:                   # Air (working fluid, 전체 ṁ 흐름)
     htc_rated: 107.2          # [W/m²K]
     area: 24.28               # [m²]
     m_dot_rated: 0.382        # [kg/s]  정격 Air 유량
-  T_sec_out_target: 193.15   # [K]  (-80.0°C)  역산 목표: IM-7 출구온도 (bypass_solver 사용)
+  T_sec_out_target: 303.15   # [K]  (193.15K, -80.0°C)  역산 목표: IM-7 출구온도 (bypass_solver 사용)
   # 주의: T_sec_out_target < T_sec_in (= hotside.T_inlet = 197.65 K) 이어야 함
   # 베이스라인(x=0) 복권 사이클 T_sec_out ≈ 190-191 K → 목표는 190~197.65 K 범위
   dP: 0                       # [Pa]  압력 손실 (0 = 현재 무시)

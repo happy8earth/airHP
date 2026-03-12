@@ -198,6 +198,19 @@ Air 고정 (CoolProp `"Air"` pseudo-pure).
 
 ---
 
+## 완료됨 (Task A 전체)
+
+- [x] **A-1** `src/components/splitter.py` — 압축기 토출부 분기 (질량/에너지 보존, state 동일)
+- [x] **A-2** `src/components/mixer.py` — 단열 혼합기 (h_mix = 가중 평균, 압력 동일)
+- [x] **A-3** `src/components/hx_recuperator.py` — m_dot_hot/m_dot_cold 독립 인자 추가; 온도 역전 pass-through 처리
+- [x] **A-4** `src/cycles/bypass_a_brayton.py` — 7-상태 bypass 사이클 (외부 T1 fixed-point + 내부 brentq T4)
+- [x] **A-5** `configs/bypass_a_baseline.yaml` — pressure_ratio 고정 + T_sec_out_target 지정
+- [x] **A-6** `src/bypass_solver.py` — T_sec_out_target → x brentq 역산, x_max 이진 탐색, T1 발산 감지
+- [x] **A-7** `visualize.py` — `sweep_T_sec_out()` 함수 추가; x, COP, W_net, T_expander_outlet vs T_sec_out_target 2×2 그래프 + CSV 저장; `main()` bypass 분기 처리
+- [x] **A-8** `src/components/hx_load.py` — T_sec_out, ε (effectiveness) extra 출력 추가
+
+---
+
 ## 완료됨
 
 - [x] `src/properties/` 패키지 전환 — `properties.py` → `properties/__init__.py`, `fluid` 문자열 분기 (`"IM7"` vs CoolProp)
