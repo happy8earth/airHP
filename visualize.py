@@ -308,6 +308,8 @@ def plot_Ts(out: dict, cfg: dict, save_path: str) -> None:
 
     ax.axhline(0,    color="gray", lw=0.6, ls="--")
     ax.axhline(-100, color="gray", lw=0.6, ls="--")
+    ax.set_xlim(3.0, 4.0)
+    ax.set_ylim(-120, 150)
     ax.set_xlabel("Entropy  s  [kJ/(kg·K)]", fontsize=11)
     ax.set_ylabel("Temperature  T  [°C]",    fontsize=11)
     ax.set_title(
@@ -560,8 +562,7 @@ def main():
         print(f"\n  Generating plots → {result_dir}/")
         plot_Ts(out, cfg_run, os.path.join(result_dir, "cycle_Ts.png"))
         plot_Ph(out, cfg_run, os.path.join(result_dir, "cycle_Ph.png"))
-        print(f"  Running T_sec_out sweep ...")
-        sweep_T_sec_out(cfg, result_dir)
+        # sweep_T_sec_out(cfg, result_dir)  # 비활성화
         print("  Done.")
     else:
         # ── Simple / Recuperated 사이클 ───────────────────
