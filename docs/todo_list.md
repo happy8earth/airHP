@@ -84,6 +84,23 @@ State 2 ─(1-x)→ [Aftercooler] → [Recup.hot] → State 4 ─┐
 - 출력: `x`, COP, W_net, T_expander_outlet vs. `T_sec_out_target` 그래프
 - 결과 CSV 저장: `results/<run>/x_vs_T_sec_out.csv`
 
+**[완료] A-9. `src/components/hx_recuperator.py` — Signed Q (방향 보존 열량 모델)**
+
+- **배경**: Bypass_A 사이클에서 x ≳ 0.45 구간에서 recuperator의 cold-side 입구가 hot-side 입구보다 높아지는 온도역전 발생 → 역방향 열전달 모델링 필요
+- **목표**: 스트림 레이블(hot/cold) 고정 상태에서 Q에 방향 부호를 부여 → Q 부호만으로 열전달 방향 식별 가능, 정보 소실 없음
+- **로직**:
+  ```
+  direction = sign(T_hot_in - T_cold_in)   # +1: 정방향, −1: 역방향
+  LMTD = LMTD(|ΔT|)                        # 절댓값 기반으로 항상 양수
+  Q = direction × UA × LMTD               # 부호 있는 열량
+  T_hot_out  = T_hot_in  − Q / (m_dot_hot  × Cp_hot)
+  T_cold_out = T_cold_in + Q / (m_dot_cold × Cp_cold)
+  ```
+- **결과 해석**: Q > 0 → 정방향(hot→cold), Q < 0 → 역방향(cold→hot)
+- ΔT_in = 0일 때 direction = 0 → Q = 0 도출
+
+---
+
 **A-8. `src/components/hx_load.py` — ε, T_sec_out 출력 추가**
 - 현재: `extra={"UA": UA, "LMTD": lmtd}` 만 반환; `_T_sec_out` 버려짐
 - 추가: `T_sec_out` (IM-7 출구온도), ε (effectiveness) 계산 후 `extra`에 포함
@@ -98,31 +115,170 @@ State 2 ─(1-x)→ [Aftercooler] → [Recup.hot] → State 4 ─┐
 
 **현재 상태**
 모든 HX에서 작동 유체의 출구 압력 = 입구 압력 (압손 = 0 가정).
+각 YAML에 `dP: 0` / `dP_hot: 0` / `dP_cold: 0` 항목만 존재하며 코드에 미반영.
 
-**목표 (1단계: 고정값 압손)**
-각 HX에 상수 압손 `dP [Pa]` 를 파라미터로 추가:
+**P_low 정의 기준 (전 사이클 공통)**
+`P_low` = 압축기 입구(State 1) 압력 = 고정 기준값.
+압손이 있으면 Load HX 입구(= 팽창기 출구) 압력은 `P_low + dP_load`가 되며,
+팽창기는 `P_low`가 아닌 `P_low + dP_load`까지만 팽창함 → 팽창기 일 감소.
 
-```
-P_out = P_in - dP
-```
+---
 
-사이클 영향:
-- Aftercooler (`hx_aftercooler`) 압손 → 팽창기 입구 압력 저하 → 팽창비 감소 → W_expander ↓
-- Load HX (`hx_load`) 압손 → 압축기 입구 압력 저하 → 압축비 증가 → W_compressor ↑
-- Recuperator (`hx_recup`) 양측 압손 → 동일 방향으로 영향
+#### 2-1. [ ] Simple 사이클 — 고정값 압손 구현 및 검증
+
+**압력 캐스케이드**
+
+| State | 설명 | 압력 |
+|-------|------|------|
+| State 1 | 압축기 입구 (기준점) | `P_low` |
+| State 2 | 압축기 출구 | `P_high` |
+| State 3 | Aftercooler 출구 / 팽창기 입구 | `P_high − dP_AC` |
+| State 4 | 팽창기 출구 / Load HX 입구 | `P_low + dP_load` |
+| State 1 | Load HX 출구 (순환 완결) | `P_low` ✓ |
+
+팽창기 실제 압력비: `(P_high − dP_AC) / (P_low + dP_load)`
 
 **변경 파일**
-- `src/components/hx_aftercooler.py` — `run(..., dP=0.0)` 추가, `P_out = state_in.P - dP`로 출구 상태 계산
-- `src/components/hx_load.py` — 동일
-- `src/components/hx_recuperator.py` — `dP_hot=0.0`, `dP_cold=0.0` 추가
-- `configs/simple_baseline.yaml`, `configs/recuperated_baseline.yaml` — `hx_aftercooler.dP`, `hx_load.dP`, `hx_recup.dP_hot`, `hx_recup.dP_cold` 활성화 (현재 0으로 설정됨)
-- `src/cycles/simple_brayton.py`, `src/cycles/recuperated_brayton.py` — HX 호출 시 dP 전달; 각 상태점 압력 반영
+- `src/components/hx_aftercooler.py` — `run(..., dP=0.0)` 추가; `state_out.P = state_in.P − dP`
+- `src/components/hx_load.py` — `run(..., dP=0.0)` 추가; `state_out.P = state_in.P − dP`
+- `src/cycles/simple_brayton.py`
+  - Aftercooler 호출 시 YAML `hx_aftercooler.dP` 전달
+  - Expander `P_out = P_low + dP_load` (기존 `P_low` 대신)
+  - Load HX 호출 시 `dP = dP_load` 전달
+- `configs/simple_baseline.yaml` — `hx_aftercooler.dP`, `hx_load.dP` 값 기입
 
-**비고**
-- 압손이 있으면 `P_high` outer brentq 의 수렴 조건 변경 없음 (`expander.T_outlet_target` 기준 유지)
-- 단, 압손 합산이 클 경우 P_high / P_low 의 정의 재검토 필요:
-  - P_low = 압축기 입구 압력 (Load HX 출구) — 압손 반영 시 Load HX 입구 ≠ P_low
-  - 향후 2단계에서 각 상태점 압력을 독립 변수로 분리 고려
+**검증 항목**
+- `dP = 0` 시 기존 결과와 동일한지 확인 (회귀)
+- `dP_AC = 5 000 Pa, dP_load = 2 000 Pa` 설정 후 에러 없이 실행
+- 출력 dict에 각 State 압력값 포함 여부 확인
+
+---
+
+#### 2-2. [ ] Recuperated 사이클 — 고정값 압손 구현 및 검증
+
+**압력 캐스케이드**
+
+| State | 설명 | 압력 |
+|-------|------|------|
+| State 1 | 압축기 입구 | `P_low` |
+| State 2 | 압축기 출구 | `P_high` |
+| State 3 | Aftercooler 출구 | `P_high − dP_AC` |
+| State 4 | Recup.hot 출구 / 팽창기 입구 | `P_high − dP_AC − dP_recup_hot` |
+| State 5 | 팽창기 출구 / Recup.cold 입구 | `P_low + dP_load + dP_recup_cold` |
+| State 6 | Recup.cold 출구 / Load HX 입구 | `P_low + dP_load` |
+| State 1 | Load HX 출구 | `P_low` ✓ |
+
+팽창기 실제 입출구 압력: State 4 → State 5 (양측 모두 dP 반영)
+
+**변경 파일**
+- `src/components/hx_recuperator.py` — `run(..., dP_hot=0.0, dP_cold=0.0)` 추가; 각 측 독립 압손 적용
+- `src/cycles/recuperated_brayton.py`
+  - 내부 brentq T4 잔차함수 내에서도 Recup 호출 시 `dP_hot` 전달 필요
+  - Expander: `P_in = P_high − dP_AC − dP_recup_hot`, `P_out = P_low + dP_load + dP_recup_cold`
+- `configs/recuperated_baseline.yaml` — 기존 `dP_hot: 0`, `dP_cold: 0` 값 기입
+
+**주의 사항**
+- 내부 brentq T4 수렴 구간 `[140 K, state3.T]` 에서 `state3.T` 계산 시 State 3 압력 = `P_high − dP_AC` 사용 확인
+
+---
+
+#### 2-3. [ ] Bypass_A 사이클 — 고정값 압손 구현 및 검증
+
+**압력 캐스케이드 (분기별)**
+
+| 경로 | State | 압력 |
+|------|-------|------|
+| 분기 전 | State 2 (압축기 출구) | `P_high` |
+| 주 경로 | State 3 (AC 출구) | `P_high − dP_AC` |
+| 주 경로 | State 4 (Recup.hot 출구) | `P_high − dP_AC − dP_recup_hot` |
+| 바이패스 경로 | State 2_bypass (AC·Recup 미통과) | `P_high` |
+| **혼합 후** | **State 4m (Mixer 출구)** | **`P_high − dP_AC − dP_recup_hot` (설계 결정)** |
+| 공통 | State 5 (팽창기 출구) | `P_low + dP_load + dP_recup_cold` |
+| 공통 | State 6 (Recup.cold 출구) | `P_low + dP_load` |
+| 공통 | State 1 (Load HX 출구) | `P_low` ✓ |
+
+**Mixer 압력 불일치 처리 방침**
+
+| 스트림 | 압력 |
+|--------|------|
+| 주 경로 State 4 | `P_high − dP_AC − dP_recup_hot` (낮음) |
+| 바이패스 State 2_bypass | `P_high` (높음) |
+
+두 스트림의 압력이 다름 → Mixer 진입 전 압력 평형 필요.
+
+- **이번 단계(2-3) 단순화 방침**: Mixer 출구 압력 = 낮은 쪽(주 경로) 기준.
+  바이패스 스트림의 압력 강하는 암묵적 교축(등엔탈피)으로 간주. dP 값이 작을 때 허용 가능.
+- `src/components/mixer.py` — 혼합 압력을 `min(state_a.P, state_b.P)` 로 변경 (현재: `state_a.P`)
+- **향후 정밀 모델**: 바이패스 경로에 `throttle.py` (Topology B와 공용) 명시적 추가 후 혼합.
+
+**변경 파일**
+- `src/components/mixer.py` — 혼합 압력 `min(P_a, P_b)` 적용
+- `src/cycles/bypass_a_brayton.py`
+  - 압력 캐스케이드 변수 명시 계산 후 각 컴포넌트에 전달
+  - Expander, Load HX, Recup 호출 시 실제 압력 반영
+- `src/bypass_solver.py` — 변경 없음 (run_cycle 출력만 소비)
+- `configs/bypass_a_baseline.yaml` — dP 항목 값 기입
+
+**검증 항목**
+- `x = 0` 시 Recuperated 사이클 결과와 동일한지 확인
+- 바이패스 경로 State 2_bypass.P = P_high 유지, Mixer 출구 State 4m.P = State 4.P 확인
+
+---
+
+#### 2-4. [ ] 유량 의존 압손 스케일링 (Rated ΔP → 운전 유량별 ΔP)
+
+**물리 배경**
+카탈로그 정격 조건 `(dP_rated, m_dot_rated)`에서 운전 유량에 따른 압손 스케일링:
+
+```
+dP = dP_rated × (m_dot / m_dot_rated)^n
+```
+
+- `n = 2.0`: 완전 난류 (Darcy-Weisbach; 기본값 권장)
+- `n = 1.8`: Dittus-Boelert (UA 스케일링 지수와 통일 시 사용)
+
+**Bypass_A 분기 유량 적용**
+
+| HX | 적용 유량 | dP 계산 |
+|----|-----------|---------|
+| Aftercooler | `(1−x)·ṁ` | `dP_AC_rated × ((1−x)·ṁ / ṁ_AC_rated)^n` |
+| Recup.hot | `(1−x)·ṁ` | `dP_recup_hot_rated × ((1−x)·ṁ / ṁ_rated)^n` |
+| Recup.cold | `ṁ` (전량) | `dP_recup_cold_rated × (ṁ / ṁ_rated)^n` |
+| Load HX | `ṁ` (전량) | `dP_load_rated × (ṁ / ṁ_rated)^n` |
+
+→ 바이패스율 `x` 증가 시 Aftercooler·Recup.hot 압손 감소, Recup.cold·Load HX 압손 불변.
+
+**YAML 파라미터 추가 (예시)**
+```yaml
+hx_aftercooler:
+  hotside:
+    dP_rated: 5000.0    # [Pa] 카탈로그 정격 압손
+    dP_scale_n: 2.0     # 스케일링 지수
+```
+`dP: 0` 고정값 인자도 하위호환으로 유지 (단계 2-1~2-3 결과와 전환 연속성 보장).
+
+**변경 파일**
+- `src/components/hx_aftercooler.py`, `hx_load.py`, `hx_recuperator.py`
+  — `dP_rated`, `m_dot`, `m_dot_rated`, `n` 인자 추가; 내부에서 dP 계산
+- `src/cycles/simple_brayton.py`, `recuperated_brayton.py`, `bypass_a_brayton.py`
+  — YAML에서 `dP_rated`, `n` 읽어 각 컴포넌트 호출 시 유량과 함께 전달
+- `configs/` 3종 — `dP_rated` 항목 추가
+
+**검증 항목**
+- `dP_rated = 0` 시 2-1~2-3과 동일 결과 (회귀)
+- `x` 스윕 시 Aftercooler 압손 변화 그래프 확인
+- COP vs `x` 곡선에 압손 효과 정량화 (압손 없는 케이스와 비교)
+
+---
+
+**구현 순서 요약**
+
+| 단계 | 핵심 작업 | 상태 |
+|------|-----------|------|
+| 2-1 | Simple 사이클 고정값 dP 구현·검증 | [ ] |
+| 2-2 | Recuperated 사이클 고정값 dP 구현·검증 | [ ] |
+| 2-3 | Bypass_A 사이클 고정값 dP 구현·검증 (Mixer 압력 처리 포함) | [ ] |
+| 2-4 | 유량 의존 스케일링 dP 구현·전 사이클 적용·COP 영향 분석 | [ ] |
 
 ---
 

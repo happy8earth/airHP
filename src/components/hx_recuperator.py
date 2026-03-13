@@ -60,23 +60,48 @@ def run(state_hot_in: ThermodynamicState,
     mdot_hot  = m_dot_hot  if m_dot_hot  is not None else m_dot
     mdot_cold = m_dot_cold if m_dot_cold is not None else m_dot
 
-    if state_hot_in.T <= state_cold_in.T:
-        # 온도 역전 — bypass 고분율 등으로 cold inlet이 더 뜨거울 때 발생.
-        # 리큐퍼레이터 비작동 (Q=0, 양측 상태 유지) 으로 처리.
-        result_hot  = ComponentResult(state_out=state_hot_in,  W_dot=0.0, Q_dot=0.0,
-                                      label="RecupHot",
-                                      extra={"UA": 0.0, "LMTD": 0.0, "inversion": True})
-        result_cold = ComponentResult(state_out=state_cold_in, W_dot=0.0, Q_dot=0.0,
-                                      label="RecupCold",
-                                      extra={"inversion": True})
-        return result_hot, result_cold
-
     UA = ua_scale_two_side(
         htc_hot_rated, area_hot,  mdot_hot,  m_dot_hot_rated,
         htc_cold_rated, area_cold, mdot_cold, m_dot_cold_rated,
     )
 
-    T_hot_out, T_cold_out, Q_cf, lmtd = solve_counterflow(
+    dT_in = state_hot_in.T - state_cold_in.T
+
+    if abs(dT_in) < 1e-6:
+        # 완전 동온 → Q = 0
+        result_hot  = ComponentResult(state_out=state_hot_in,  W_dot=0.0, Q_dot=0.0,
+                                      label="RecupHot",
+                                      extra={"UA": UA, "LMTD": 0.0, "Q_signed": 0.0})
+        result_cold = ComponentResult(state_out=state_cold_in, W_dot=0.0, Q_dot=0.0,
+                                      label="RecupCold",
+                                      extra={"Q_signed": 0.0})
+        return result_hot, result_cold
+
+    if dT_in < 0:
+        # 온도 역전: cold inlet > hot inlet → hot/cold 스왑하여 solve_counterflow 재호출.
+        # Q_swapped > 0 = 실제 cold→hot 방향 열전달.
+        T_cold_out_sol, T_hot_out_sol, _, lmtd = solve_counterflow(
+            UA,
+            state_cold_in.T, state_cold_in.P, state_cold_in.fluid,  # swapped "hot"
+            state_hot_in.T,  state_hot_in.P,  state_hot_in.fluid,   # swapped "cold"
+            mdot_cold, mdot_hot,
+        )
+        state_hot_out  = state_from_TP(T_hot_out_sol,  state_hot_in.P,
+                                        fluid=state_hot_in.fluid,  label="RecupHotOut")
+        state_cold_out = state_from_TP(T_cold_out_sol, state_cold_in.P,
+                                        fluid=state_cold_in.fluid, label="RecupColdOut")
+        Q_hot  = mdot_hot  * (state_hot_out.h  - state_hot_in.h)   # > 0 (흡열)
+        Q_cold = mdot_cold * (state_cold_out.h - state_cold_in.h)  # < 0 (방열)
+        result_hot  = ComponentResult(state_out=state_hot_out,  W_dot=0.0,
+                                      Q_dot=Q_hot,  label="RecupHot",
+                                      extra={"UA": UA, "LMTD": lmtd, "Q_signed": Q_hot})
+        result_cold = ComponentResult(state_out=state_cold_out, W_dot=0.0,
+                                      Q_dot=Q_cold, label="RecupCold",
+                                      extra={"Q_signed": Q_cold})
+        return result_hot, result_cold
+
+    # 정방향 (T_hot > T_cold)
+    T_hot_out, T_cold_out, _, lmtd = solve_counterflow(
         UA,
         state_hot_in.T,  state_hot_in.P,  state_hot_in.fluid,   # hot side
         state_cold_in.T, state_cold_in.P, state_cold_in.fluid,   # cold side
@@ -93,7 +118,8 @@ def run(state_hot_in: ThermodynamicState,
 
     result_hot  = ComponentResult(state_out=state_hot_out,  W_dot=0.0,
                                   Q_dot=Q_hot,  label="RecupHot",
-                                  extra={"UA": UA, "LMTD": lmtd})
+                                  extra={"UA": UA, "LMTD": lmtd, "Q_signed": Q_hot})
     result_cold = ComponentResult(state_out=state_cold_out, W_dot=0.0,
-                                  Q_dot=Q_cold, label="RecupCold")
+                                  Q_dot=Q_cold, label="RecupCold",
+                                  extra={"Q_signed": Q_cold})
     return result_hot, result_cold
