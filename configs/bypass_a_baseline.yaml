@@ -29,7 +29,7 @@ hx_load:
     htc_rated: 273.3          # [W/m²K]
     area: 9.52                # [m²]
     m_dot_rated: 0.827        # [kg/s]  정격 IM-7 유량
-    T_inlet: 313.15          # [K]  (197.65, -75.5°C)  IM-7 입구 온도 (냉동 공간)
+    T_inlet: 308.15          # [K]  (197.65, -75.5°C)  IM-7 입구 온도 (냉동 공간)
   coldside:                   # Air (working fluid, 전체 ṁ 흐름)
     htc_rated: 107.2          # [W/m²K]
     area: 24.28               # [m²]

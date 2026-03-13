@@ -99,8 +99,11 @@ def print_results(cfg: dict, out: dict) -> None:
     print(f"    W_compressor            : {out['W_compressor']/1e3:>8.3f} kW")
     print(f"    W_expander               : {out['W_expander']/1e3:>8.3f} kW")
     print(f"    W_net                   : {out['W_net']/1e3:>8.3f} kW")
-    if out.get("Q_recuperator", 0.0) > 0:
-        print(f"    Q_recuperator           : {out['Q_recuperator']/1e3:>8.3f} kW")
+    if "Q_recuperator" in out:
+        # Sign convention: Q_recuperator = -RecupHot.Q_dot
+        #   RecupHot.Q_dot < 0 -> Q_recuperator > 0 (normal)
+        #   RecupHot.Q_dot > 0 -> Q_recuperator < 0 (reversed)
+        print(f"    Q_recuperator : {out['Q_recuperator']/1e3:>8.3f} kW")
     print(f"    COP                     : {out['COP']:>8.4f}")
     if "T_sec_out" in out and out["T_sec_out"] is not None:
         print(f"    T_sec_out (IM-7 out)    : {out['T_sec_out'] - 273.15:>7.2f} °C"
@@ -119,8 +122,9 @@ def print_results(cfg: dict, out: dict) -> None:
         print(hdr)
         print("  " + "-" * (50 + (9 if eps_col else 0)))
         for r in hx_results:
+            q_kw = r.Q_dot / 1e3 if "Q_signed" in r.extra else abs(r.Q_dot) / 1e3
             line = (f"    {r.label:<16} {r.extra['UA']:>10.1f} "
-                    f"{r.extra['LMTD']:>10.2f} {abs(r.Q_dot)/1e3:>8.3f}")
+                    f"{r.extra['LMTD']:>10.2f} {q_kw:>8.3f}")
             if eps_col and r.extra.get("epsilon") is not None:
                 line += f"  {r.extra['epsilon']:>6.4f}"
             print(line)

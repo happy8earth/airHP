@@ -153,7 +153,10 @@ def run_cycle(config: dict, P_high: float, x: float) -> dict:
             )
             return T4_K - _recup_hot.state_out.T
 
-        T4_lo, T4_hi = 140.0, state3.T
+        # T4_hi: 역전 구간에서 T4_actual > state3.T 가능 (cold가 IM-7 온도에 근접).
+        # T4_actual ≤ State6.T ≤ T_IM7 이므로, T4_hi = max(state3.T, T_IM7 + 1K) 로 보장.
+        T4_hi = max(state3.T, lhx_hot["T_inlet"] + 1.0)
+        T4_lo = 140.0
         if _residual(T4_lo) * _residual(T4_hi) > 0:
             raise ValueError(
                 f"Recuperator inner solve: [{T4_lo:.1f}, {T4_hi:.1f}] K "
