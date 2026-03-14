@@ -174,24 +174,26 @@ y → mdot_load_sec = (1-y)·ṁ_sec → hx_load → T_load_sec_out → y (Mixer
 - Q_heater=6000W, T_chuck_sec_in=303.15K → y=0.9553, mdot_load_sec=0.037 kg/s 검증 완료
 - 한계: 비결합 근사로 `Q_cold ≠ Q_heater + Q_chuck` (air측 YAML 고정값 사용)
 
-**[ ] 1-5. 결합 솔버 구현 (deferred)**
+**[완료] 1-5. 결합 솔버 구현**
 
-**배경**: 현재 비결합 근사에서 공기측은 YAML의 `hx_load.hotside.T_inlet`과 `m_dot_rated`를 고정값으로 사용.
-실제로는 `T_load_sec_in`과 `mdot_load_sec`가 Q_heater에 의해 결정되므로,
-`Q_cold = Q_heater + Q_chuck` 에너지 균형이 성립하지 않음.
+**배경**: 비결합 근사의 `Q_cold ≠ Q_heater + Q_chuck` 문제를 해결.
+`T_load_sec_in`(Q_heater 역산)·`mdot_load_sec`(Mixer 해석해)를 air측 사이클에 직접 결합.
 
-**결합 솔버 구조**:
+**결합 솔버 구조 (실제 구현)**:
 ```
-outer brentq on x: Q_cold(x) = Q_heater  (T_sec_out_target 대신 Q_heater로 x 역산)
-  ├─ inner brentq on y: Mixer 제약식 만족
-  └─ bypass_a_brayton.run_cycle(config, P_high, x, T_load_sec_in, m_dot_load_sec) 호출
+1단계: T_load_sec_in  — compute_T_load_sec_in() (IM-7 h(T) 역산, 반복 없음)
+2단계: y_sec          — Mixer 엔탈피 균형 해석적 계산 (brentq 불필요)
+         y = (h(T_chuck) − h(T_target)) / (h(T_in) − h(T_target))
+3단계: outer brentq on x: T_load_sec_out(x) = T_sec_out_target
+         run_cycle(config, P_high, x, T_sec_load=T_load_sec_in, m_dot_hot_sec=m_dot_load_sec)
 ```
 
-**구현 항목**:
-- `src/cycles/bypass_a_brayton.py` — optional `T_load_sec_in`, `m_dot_load_sec` 파라미터 추가
-- `src/coupled_solver.py` — `solve_coupled(config, Q_heater)`, `sweep_Q_heater(config, Q_heater_values)`
-- `visualize.py` — W_net+W_heater vs Q_heater 그래프
-- 이를 통해 최적 Q_heater(= 최소 W_total) 탐색 가능
+**구현 결과**:
+- `src/cycles/bypass_a_brayton.py` — `T_sec_load`, `m_dot_hot_sec` optional 파라미터 추가 완료
+- `src/coupled_solver.py` — `solve(config)` 함수; `Q_cold = Q_heater + Q_chuck` 수학적 보장
+- `sweep.py` — `--mode Q` (Q_heater 스윕), `--mode T` (T_sec_out_target 스윕), `--mode 2D` (그리드 스윕)
+- `visualize.py` — `plot_load_side()` 함수 추가 (load side 토폴로지 다이어그램 + 에너지 흐름)
+- 스윕 결과 CSV + PNG 자동 저장: `results/sweep_<timestamp>/`
 
 ---
 
@@ -438,16 +440,23 @@ Air 고정 (CoolProp `"Air"` pseudo-pure).
 
 ---
 
-## 완료됨 (Task A 전체)
+## 완료됨 (Task A 전체 + Load측 모델링)
 
 - [x] **A-1** `src/components/splitter.py` — 압축기 토출부 분기 (질량/에너지 보존, state 동일)
 - [x] **A-2** `src/components/mixer.py` — 단열 혼합기 (h_mix = 가중 평균, 압력 동일)
 - [x] **A-3** `src/components/hx_recuperator.py` — m_dot_hot/m_dot_cold 독립 인자 추가; 온도 역전 pass-through 처리
-- [x] **A-4** `src/cycles/bypass_a_brayton.py` — 7-상태 bypass 사이클 (외부 T1 fixed-point + 내부 brentq T4)
+- [x] **A-4** `src/cycles/bypass_a_brayton.py` — 7-상태 bypass 사이클 (외부 T1 fixed-point + 내부 brentq T4); optional `T_sec_load`·`m_dot_hot_sec` 파라미터 추가 (결합 솔버 연동)
 - [x] **A-5** `configs/bypass_a_baseline.yaml` — pressure_ratio 고정 + T_sec_out_target 지정
 - [x] **A-6** `src/bypass_solver.py` — T_sec_out_target → x brentq 역산, x_max 이진 탐색, T1 발산 감지
 - [x] **A-7** `visualize.py` — `sweep_T_sec_out()` 함수 추가; x, COP, W_net, T_expander_outlet vs T_sec_out_target 2×2 그래프 + CSV 저장; `main()` bypass 분기 처리
 - [x] **A-8** `src/components/hx_load.py` — T_sec_out, ε (effectiveness) extra 출력 추가
+- [x] **1-1** `configs/bypass_a_baseline.yaml` — load_side 파라미터 추가 (T_chuck_sec_in, Q_chuck, Q_heater)
+- [x] **1-2** `src/load_side_solver.py` — `compute_T_load_sec_in()`, `solve_y()` (brentq on y), `solve_load_side()` 통합 진입점
+- [x] **1-3** `src/bypass_solver.py` — load_side_solver 연동 (비결합 근사)
+- [x] **1-4** `main.py` — performance.csv에 load_side 출력 추가; Q_heater=6000W 검증 완료
+- [x] **1-5** `src/coupled_solver.py` — `solve(config)` 완전 결합 솔버; y 해석적 계산, `Q_cold = Q_heater + Q_chuck` 수학적 보장
+- [x] **1-5** `sweep.py` — `--mode Q/T/2D` 파라미터 스윕 (Q_heater·T_sec_out_target); CSV + PNG 자동 저장
+- [x] **1-5** `visualize.py` — `plot_load_side()` load side 토폴로지 다이어그램 추가
 
 ---
 

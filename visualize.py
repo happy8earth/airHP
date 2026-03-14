@@ -30,6 +30,7 @@ import yaml
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from cycle_solver import solve
 from bypass_solver import solve as bypass_solve
+from coupled_solver import solve as coupled_solve
 import CoolProp.CoolProp as CP
 
 
@@ -536,6 +537,135 @@ def sweep_rp(cfg_base: dict, save_dir: str,
 
 
 # ─────────────────────────────────────────────
+# Load 회로 시각화 (bypass 사이클 전용)
+# ─────────────────────────────────────────────
+
+def plot_load_side(out: dict, cfg: dict, save_path: str) -> None:
+    """
+    IM-7 2차측 부하 회로 온도 흐름 다이어그램.
+
+    토폴로지:
+      T_chuck_sec_in → [Chuck +Q_chuck] → T_chuck_sec_out
+        → [Heater +Q_heater] → T_load_sec_in
+        → [Splitter]
+            ├─ (1-y)·ṁ → [hx_load] → T_load_sec_out ─┐
+            └─  y·ṁ (bypass) ──────────────────────────┤
+                                                        ↓
+                                              [Mixer] → T_chuck_sec_in
+    """
+    # coupled_solver: 최상위 키, bypass_solver: load_side 중첩 딕셔너리
+    if "y_sec" in out:
+        ls = out
+        y = out["y_sec"]
+    else:
+        ls = out.get("load_side")
+        if ls is None:
+            return
+        y = ls["y"]
+
+    T_chuck_in  = ls["T_chuck_sec_in"]   - 273.15
+    T_chuck_out = ls["T_chuck_sec_out"]  - 273.15
+    T_load_in   = ls["T_load_sec_in"]    - 273.15
+    T_load_out  = ls["T_load_sec_out"]   - 273.15
+    mdot        = ls["mdot_load_sec"]
+    Q_chuck     = ls["Q_chuck"]
+    Q_heater    = ls["Q_heater"]
+
+    # hx_load air 측 (State 5, 6) 온도
+    T5 = out["states"][5].T - 273.15   # expander 출구
+    T6 = out["states"][6].T - 273.15   # load HX 출구
+
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+
+    # ── 왼쪽: IM-7 회로 온도 사다리 ─────────────────────
+    ax = axes[0]
+
+    nodes_x = [0, 1, 2, 3,    3,    4]
+    nodes_T = [T_chuck_in, T_chuck_out, T_load_in,
+               T_load_out, T_load_in,  T_chuck_in]
+    labels  = ["T_chuck\n_sec_in", "T_chuck\n_sec_out",
+               "T_load\n_sec_in",  "T_load\n_sec_out",
+               "Bypass\n(T_load_in)", "Mixer\nout"]
+    colors  = ["#4C72B0", "#55A868", "#C44E52",
+               "#8172B2", "#CCB974", "#4C72B0"]
+
+    # 메인 경로 (전체 연결)
+    ax.plot([0, 1, 2, 3], [T_chuck_in, T_chuck_out, T_load_in, T_load_out],
+            "b-o", lw=2, ms=8, label="Main path (1-y)", zorder=3)
+    # bypass 경로
+    ax.plot([2, 4], [T_load_in, T_chuck_in],
+            color="gray", lw=1.5, ls="--", marker="o", ms=6,
+            label=f"Bypass (y={y:.3f})", zorder=3)
+    # mixer → chuck_in 닫기
+    ax.plot([3, 4], [T_load_out, T_chuck_in],
+            color="#55A868", lw=1.5, ls="-", zorder=2)
+
+    # air 측 온도 참고선
+    ax.axhline(T5, color="orange", ls=":", lw=1.2, label=f"Air State5 (expander out) {T5:.1f}°C")
+    ax.axhline(T6, color="red",    ls=":", lw=1.2, label=f"Air State6 (load HX out)  {T6:.1f}°C")
+
+    for xi, Ti, lbl, col in zip(nodes_x, nodes_T, labels, colors):
+        ax.annotate(f"{lbl}\n{Ti:.1f}°C",
+                    xy=(xi, Ti), xytext=(0, 14),
+                    textcoords="offset points",
+                    ha="center", fontsize=8, color=col,
+                    bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7))
+
+    # Q 화살표 주석
+    ax.annotate(f"Q_chuck\n{Q_chuck/1e3:.2f} kW", xy=(0.5, (T_chuck_in + T_chuck_out)/2),
+                ha="center", fontsize=8, color="gray")
+    ax.annotate(f"Q_heater\n{Q_heater/1e3:.2f} kW", xy=(1.5, (T_chuck_out + T_load_in)/2),
+                ha="center", fontsize=8, color="darkorange")
+
+    ax.set_xticks([0, 1, 2, 3, 4])
+    ax.set_xticklabels(["Chuck\nin", "Chuck\nout", "Load HX\nin", "Load HX\nout", "Mixer\nout"],
+                       fontsize=9)
+    ax.set_ylabel("Temperature  [°C]", fontsize=10)
+    ax.set_title("IM-7 Load Circuit  —  Temperature Ladder", fontsize=10)
+    ax.legend(fontsize=8, loc="best")
+    ax.grid(True, alpha=0.3)
+
+    # ── 오른쪽: 유량 분배 파이 차트 ──────────────────────
+    ax2 = axes[1]
+    m_dot_sec = cfg.get("load_side", {}).get(
+        "m_dot_sec", cfg["hx_load"]["hotside"]["m_dot_rated"])
+    fracs  = [1.0 - y, y]
+    lbls   = [f"hx_load\n{mdot:.4f} kg/s\n({(1-y)*100:.1f}%)",
+              f"Bypass\n{y*m_dot_sec:.4f} kg/s\n({y*100:.1f}%)"]
+    clrs   = ["#4C72B0", "#CCB974"]
+    ax2.pie(
+        fracs, labels=lbls, colors=clrs, autopct="",
+        startangle=90, textprops={"fontsize": 9})
+
+    # 온도 요약 텍스트
+    summary = (
+        f"T_chuck_sec_in   = {T_chuck_in:.2f} °C\n"
+        f"T_chuck_sec_out  = {T_chuck_out:.2f} °C\n"
+        f"T_load_sec_in    = {T_load_in:.2f} °C\n"
+        f"T_load_sec_out   = {T_load_out:.2f} °C\n"
+        f"y (2차 bypass)   = {y:.4f}\n"
+        f"ṁ_load_sec       = {mdot:.4f} kg/s\n"
+        f"Q_chuck          = {Q_chuck/1e3:.3f} kW\n"
+        f"Q_heater         = {Q_heater/1e3:.3f} kW"
+    )
+    ax2.set_title("Secondary Flow Split", fontsize=10)
+    fig.text(0.97, 0.5, summary, va="center", ha="right", fontsize=8.5,
+             fontfamily="monospace",
+             bbox=dict(boxstyle="round", fc="#f7f7f7", ec="gray", alpha=0.8))
+
+    cycle_name = cfg.get("cycle", "bypass_a_brayton")
+    fig.suptitle(
+        f"{cycle_name}  |  Load Side  |  "
+        f"x_bypass(air)={out['x_bypass']:.4f}  "
+        f"COP={out['COP']:.3f}",
+        fontsize=11)
+    fig.tight_layout(rect=[0, 0, 0.82, 1])
+    fig.savefig(save_path, dpi=150)
+    plt.close(fig)
+    print(f"    load_side.png  saved")
+
+
+# ─────────────────────────────────────────────
 # 진입점
 # ─────────────────────────────────────────────
 
@@ -555,13 +685,18 @@ def main():
     if is_bypass:
         # ── Bypass 사이클 ──────────────────────────────────
         cfg_run = copy.deepcopy(cfg)
-        out = bypass_solve(cfg_run)
+        if "load_side" in cfg:
+            out = coupled_solve(cfg_run)
+        else:
+            out = bypass_solve(cfg_run)
         result_dir = out["result_dir"]
         os.makedirs(result_dir, exist_ok=True)
 
         print(f"\n  Generating plots → {result_dir}/")
         plot_Ts(out, cfg_run, os.path.join(result_dir, "cycle_Ts.png"))
         plot_Ph(out, cfg_run, os.path.join(result_dir, "cycle_Ph.png"))
+        if "y_sec" in out or out.get("load_side") is not None:
+            plot_load_side(out, cfg_run, os.path.join(result_dir, "load_side.png"))
         # sweep_T_sec_out(cfg, result_dir)  # 비활성화
         print("  Done.")
     else:
