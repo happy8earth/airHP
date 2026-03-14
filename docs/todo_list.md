@@ -110,28 +110,90 @@ State 2 ─(1-x)→ [Aftercooler] → [Recup.hot] → State 4 ─┐
 - 역산 solver(A-6)에서 `T_sec_out_cycle(x)` 로 직접 사용
 
 ---
-### [ ] 1. Load측 모델링 
-Chuck 출구 → Heater → [Splitter] ─── (1-y)·ṁ_sec ──→ [hx_load 2차측] ──→ \
-                           │                                                  [Mixer] → Chuck 입구
-                           └──── y·ṁ_sec (bypass) ──────────────────────→ /
+### [x] 1. Load측 모델링
 
-- Chuck inlet temperature (T_chuck_sec_in)
-→ Mode1: 173.15 K 
-→ Mode2: 303.15 K 
+**토폴로지**
+```
+Chuck 출구(T_chuck_sec_out)
+  → [Heater +Q_heater] → T_load_sec_in
+  → [Splitter]
+      ├─(1-y)·ṁ_sec ──→ [hx_load 2차측] → T_load_sec_out ─┐
+      └─ y·ṁ_sec (bypass) ────────────── T_load_sec_in ──→ [Mixer] → T_chuck_sec_in → [Chuck]
+```
 
-- heat capacity of the Chuck, Chuck duty 
-→ Mode1: Q_chuck = 5 kW (입력변수)
-→ Mode2: Q_chuck = 0 kW
+**변수 매핑 (입력 → 출력)**
 
-- Heater duty: 
-→ Mode2: T_chuck_sec_in = 303.15가 
-→ Mode2: T_chuck_sec_out = 303.15 K이므로 Q_heater = 0 ✓
-Q_heater = ṁ_sec · Cp_sec · (T_load_sec_in − T_chuck_sec_out)
+| 입력 변수 | 결정하는 출력 |
+|-----------|--------------|
+| `Q_heater` | `T_load_sec_in` (heater 출구 = hx_load 2차측 입구) |
+| `x` (공기측 bypass) | `T_load_sec_out` (hx_load 2차측 출구) — 공기측 상태와 함께 결정 |
+| `y` (2차측 bypass) | `mdot_load_sec = (1-y)·ṁ_sec` (hx_load 통과 유량) |
 
-- Mixer constraint 
-T_chuck_sec_in = (1−y)·T_sec_out + y·T_load_sec_in
-→ y = (T_chuck_sec_in − T_sec_out) / (T_load_sec_in − T_sec_out)
+**지배 방정식**
 
+```
+① Chuck 에너지 균형 :  T_chuck_sec_out = T_chuck_sec_in + Q_chuck / (ṁ_sec · Cp_sec)
+② Heater 에너지 균형:  T_load_sec_in   = T_chuck_sec_out + Q_heater / (ṁ_sec · Cp_sec)
+③ hx_load UA-LMTD  :  T_load_sec_out  = f(T_load_sec_in, mdot_load_sec)   [기존 모델]
+④ Mixer 제약        :  T_chuck_sec_in  = (1-y)·T_load_sec_out + y·T_load_sec_in
+⑤ 유량 정의         :  mdot_load_sec   = (1-y)·ṁ_sec
+```
+
+→ 입력 고정 파라미터: `ṁ_sec`, `T_chuck_sec_in`, `Q_chuck`, `Q_heater`, `x`
+→ 미지수: `T_chuck_sec_out`(①), `T_load_sec_in`(②), `T_load_sec_out`(③), `y`(④), `mdot_load_sec`(⑤) = 5개
+→ 방정식 5개 → **완전 결정계** ✓
+
+**자기일관성 (y ↔ T_load_sec_out 순환 의존성)**
+
+③과 ④·⑤가 서로 연성됨:
+```
+y → mdot_load_sec = (1-y)·ṁ_sec → hx_load → T_load_sec_out → y (Mixer)
+```
+→ **brentq on y**: `f(y) = (1-y)·T_load_sec_out(y) + y·T_load_sec_in − T_chuck_sec_in = 0`
+
+
+**세부 구현 액션**
+
+**[완료] 1-1. `configs/bypass_a_baseline.yaml` — load측 파라미터 추가**
+- `load_side.T_chuck_sec_in`: 303.15 K (30°C), `Q_chuck`: 0 W, `Q_heater`: 6000 W
+- `m_dot_sec` 미기입 → `hx_load.hotside.m_dot_rated` (0.827 kg/s) 폴백
+
+**[완료] 1-2. `src/load_side_solver.py` 신규 작성**
+- `compute_T_load_sec_in(config)` → `(T_chuck_sec_out, T_load_sec_in)` — IM-7 h(T) 직접 사용
+- `solve_y(T_load_sec_in, T_chuck_sec_in, m_dot_sec, T_load_sec_out_fn)` — brentq on y
+  - y=1 경계: `T_load_sec_in ≤ T_chuck_sec_in + 0.01` → 직접 반환 (m_dot=0 ZeroDivisionError 방지)
+  - 유효 운전점: Q_load=0이어도 역브레이튼 사이클 정상 동작 → 에러 아님
+- `solve_load_side(config, T_load_sec_out_fn)` 통합 진입점
+
+**[완료] 1-3. `src/bypass_solver.py` — load_side_solver 연동**
+- `"load_side"` in config 시 State5 고정 후 `solve_load_side()` 호출 (비결합 근사)
+- 반환 dict에 `load_side` 키 추가
+
+**[완료] 1-4. 출력 및 검증**
+- `main.py` performance.csv에 `y_sec`, `mdot_load_sec`, `T_chuck_sec_*`, `T_load_sec_*_ls`, `Q_chuck`, `Q_heater` 추가
+- Q_heater=6000W, T_chuck_sec_in=303.15K → y=0.9553, mdot_load_sec=0.037 kg/s 검증 완료
+- 한계: 비결합 근사로 `Q_cold ≠ Q_heater + Q_chuck` (air측 YAML 고정값 사용)
+
+**[ ] 1-5. 결합 솔버 구현 (deferred)**
+
+**배경**: 현재 비결합 근사에서 공기측은 YAML의 `hx_load.hotside.T_inlet`과 `m_dot_rated`를 고정값으로 사용.
+실제로는 `T_load_sec_in`과 `mdot_load_sec`가 Q_heater에 의해 결정되므로,
+`Q_cold = Q_heater + Q_chuck` 에너지 균형이 성립하지 않음.
+
+**결합 솔버 구조**:
+```
+outer brentq on x: Q_cold(x) = Q_heater  (T_sec_out_target 대신 Q_heater로 x 역산)
+  ├─ inner brentq on y: Mixer 제약식 만족
+  └─ bypass_a_brayton.run_cycle(config, P_high, x, T_load_sec_in, m_dot_load_sec) 호출
+```
+
+**구현 항목**:
+- `src/cycles/bypass_a_brayton.py` — optional `T_load_sec_in`, `m_dot_load_sec` 파라미터 추가
+- `src/coupled_solver.py` — `solve_coupled(config, Q_heater)`, `sweep_Q_heater(config, Q_heater_values)`
+- `visualize.py` — W_net+W_heater vs Q_heater 그래프
+- 이를 통해 최적 Q_heater(= 최소 W_total) 탐색 가능
+
+---
 
 ### [ ] 2. 열교환기 압력 손실 모델링 (Pressure Drop)
 

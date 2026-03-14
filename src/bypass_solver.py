@@ -24,6 +24,9 @@ from scipy.optimize import brentq
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+from components import hx_load
+from load_side_solver import solve_load_side, compute_T_load_sec_in
+
 
 # ─────────────────────────────────────────────
 # 결과 폴더명 생성
@@ -137,7 +140,7 @@ def solve(config: dict) -> dict:
     x_sol = brentq(lambda x: _T_sec_out(x) - T_sec_target,
                    x_lo, x_hi, xtol=1e-4, rtol=1e-6)
 
-    # 최종 사이클 계산
+    # 최종 사이클 계산 (air 측 m_dot_hot = hx_load hotside 정격값 사용)
     cycle_out = cycle_module.run_cycle(config, P_high, x_sol)
 
     states            = cycle_out["states"]
@@ -156,6 +159,39 @@ def solve(config: dict) -> dict:
 
     energy_residual = sum(r.W_dot + r.Q_dot for r in component_results)
     energy_error    = abs(energy_residual) / abs(Q_cold) if Q_cold != 0.0 else float("nan")
+
+    # ── Load측 2차 회로 (IM-7) 솔버 ──────────────────────────────────────
+    # load_side 섹션이 config 에 있을 때만 실행 (하위 호환성 유지)
+    load_side_result = None
+    if "load_side" in config:
+        lhx     = config["hx_load"]
+        lhx_hot = lhx["hotside"]
+        lhx_cld = lhx["coldside"]
+        m_dot   = config["mass_flow"]
+
+        # air 측 State5 (Expander 출구) 고정: states = [s1,s2,s3,s4,s4m,s5,s6]
+        state5 = states[5]
+
+        # T_load_sec_in: Q_heater → IM-7 h(T) 역산
+        _, T_load_sec_in = compute_T_load_sec_in(config)
+
+        def _T_load_sec_out_fn(m_dot_load_sec: float) -> float:
+            """hx_load 2차측 출구온도. air State5 고정, m_dot_hot 가변."""
+            res = hx_load.run(
+                state5,
+                htc_hot_rated    = lhx_hot["htc_rated"],
+                area_hot         = lhx_hot["area"],
+                m_dot_hot        = m_dot_load_sec,
+                m_dot_hot_rated  = lhx_hot["m_dot_rated"],
+                htc_cold_rated   = lhx_cld["htc_rated"],
+                area_cold        = lhx_cld["area"],
+                m_dot_cold       = m_dot,
+                m_dot_cold_rated = lhx_cld["m_dot_rated"],
+                T_sec            = T_load_sec_in,
+            )
+            return res.extra["T_sec_out"]
+
+        load_side_result = solve_load_side(config, _T_load_sec_out_fn)
 
     result_dir = make_result_dir(config, x_sol)
 
@@ -180,5 +216,6 @@ def solve(config: dict) -> dict:
         Q_aftercooler     = Q_aftercooler,
         sec_temps         = sec_temps,
         energy_error      = energy_error,
+        load_side         = load_side_result,
         result_dir        = result_dir,
     )

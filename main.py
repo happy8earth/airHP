@@ -16,6 +16,7 @@ import csv
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from cycle_solver import solve
 from bypass_solver import solve as bypass_solve
+from coupled_solver import solve as coupled_solve
 
 _BYPASS_CYCLES = {"bypass_a_brayton"}
 
@@ -106,8 +107,17 @@ def print_results(cfg: dict, out: dict) -> None:
         print(f"    Q_recuperator : {out['Q_recuperator']/1e3:>8.3f} kW")
     print(f"    COP                     : {out['COP']:>8.4f}")
     if "T_sec_out" in out and out["T_sec_out"] is not None:
-        print(f"    T_sec_out (IM-7 out)    : {out['T_sec_out'] - 273.15:>7.2f} °C"
-              f"  (target: {out['T_sec_out_target'] - 273.15:.2f} °C)")
+        if "T_sec_out_target" in out:
+            print(f"    T_sec_out (IM-7 out)    : {out['T_sec_out'] - 273.15:>7.2f} °C"
+                  f"  (target: {out['T_sec_out_target'] - 273.15:.2f} °C)")
+        else:
+            print(f"    T_sec_out (IM-7 out)    : {out['T_sec_out'] - 273.15:>7.2f} °C")
+    if "y_sec" in out:
+        print(f"    y_sec (IM-7 bypass)     : {out['y_sec']:.4f}")
+        print(f"    T_load_sec_in           : {out['T_load_sec_in'] - 273.15:>7.2f} °C")
+        print(f"    T_load_sec_out          : {out['T_load_sec_out'] - 273.15:>7.2f} °C")
+        print(f"    Q_heater                : {out['Q_heater']/1e3:>8.3f} kW"
+              f"  (Q_cold - Q_heater = {(out['Q_cold']-out['Q_heater'])/1e3:+.3f} kW)")
     print(f"    Energy balance error    : {out['energy_error']:.2e}")
 
     # HX 상세 (UA·LMTD 파라미터)
@@ -213,6 +223,17 @@ def save_results(cfg: dict, out: dict) -> None:
             w.writerow(["T_load_sec_in",  f"{_load_sec['T_sec_in'] -273.15:.4f}", "degC"])
         w.writerow(["energy_error",   f"{out['energy_error']:.2e}",        "-"])
         w.writerow(["mass_flow",      f"{cfg['mass_flow']:.4f}",           "kg/s"])
+        # ── Load측 2차 회로 (IM-7) ──────────────────────────────────────
+        # coupled_solver: 필드가 out에 직접 포함
+        if "y_sec" in out:
+            w.writerow(["y_sec",           f"{out['y_sec']:.6f}",                          "-"])
+            w.writerow(["mdot_load_sec",   f"{out['mdot_load_sec']:.6f}",                  "kg/s"])
+            w.writerow(["T_chuck_sec_in",  f"{out['T_chuck_sec_in']  - 273.15:.4f}",       "degC"])
+            w.writerow(["T_chuck_sec_out", f"{out['T_chuck_sec_out'] - 273.15:.4f}",       "degC"])
+            w.writerow(["T_load_sec_in",   f"{out['T_load_sec_in']   - 273.15:.4f}",       "degC"])
+            w.writerow(["T_load_sec_out",  f"{out['T_load_sec_out']  - 273.15:.4f}",       "degC"])
+            w.writerow(["Q_chuck",         f"{out['Q_chuck']:.2f}",                        "W"])
+            w.writerow(["Q_heater",        f"{out['Q_heater']:.2f}",                       "W"])
 
     print(f"\n  Results saved to: {result_dir}/")
     print(f"    {os.path.basename(sp_path)}")
@@ -232,7 +253,10 @@ def main():
         cfg = yaml.safe_load(f)
 
     if cfg.get("cycle") in _BYPASS_CYCLES:
-        out = bypass_solve(cfg)
+        if "load_side" in cfg:
+            out = coupled_solve(cfg)
+        else:
+            out = bypass_solve(cfg)
     else:
         out = solve(cfg)
 

@@ -44,13 +44,18 @@ STATE_LABELS = [
 ]
 
 
-def run_cycle(config: dict, P_high: float, x: float) -> dict:
+def run_cycle(config: dict, P_high: float, x: float,
+              T_sec_load: float = None, m_dot_hot_sec: float = None) -> dict:
     """
     Parameters
     ----------
-    config  : dict   YAML 설정
-    P_high  : float  고압 [Pa]
-    x       : float  bypass 분율 [-]  (0 ≤ x < 1)
+    config       : dict   YAML 설정
+    P_high       : float  고압 [Pa]
+    x            : float  bypass 분율 [-]  (0 ≤ x < 1)
+    T_sec_load   : float  [K]   Load HX 2차측(IM-7) 입구온도.
+                          None → YAML hx_load.hotside.T_inlet 사용 (기존 동작)
+    m_dot_hot_sec: float  [kg/s] Load HX 2차측(IM-7) 유량.
+                          None → YAML hx_load.hotside.m_dot_rated 사용 (기존 동작)
 
     Returns
     -------
@@ -81,6 +86,10 @@ def run_cycle(config: dict, P_high: float, x: float) -> dict:
     lhx      = config["hx_load"]
     lhx_hot  = lhx["hotside"]
     lhx_cold = lhx["coldside"]
+
+    # Load HX 2차측 파라미터: 명시 인자 우선, 없으면 YAML 기본값
+    _T_sec_load   = T_sec_load    if T_sec_load    is not None else lhx_hot["T_inlet"]
+    _m_dot_hot_sec = m_dot_hot_sec if m_dot_hot_sec is not None else lhx_hot["m_dot_rated"]
 
     m_dot_main   = (1.0 - x) * m_dot   # Aftercooler / Recup.hot 측 유량
     m_dot_bypass = x * m_dot            # Bypass 스트림 유량
@@ -129,13 +138,13 @@ def run_cycle(config: dict, P_high: float, x: float) -> dict:
                 _s5,
                 htc_hot_rated=lhx_hot["htc_rated"],
                 area_hot=lhx_hot["area"],
-                m_dot_hot=lhx_hot["m_dot_rated"],
+                m_dot_hot=_m_dot_hot_sec,
                 m_dot_hot_rated=lhx_hot["m_dot_rated"],
                 htc_cold_rated=lhx_cold["htc_rated"],
                 area_cold=lhx_cold["area"],
                 m_dot_cold=m_dot,
                 m_dot_cold_rated=lhx_cold["m_dot_rated"],
-                T_sec=lhx_hot["T_inlet"],
+                T_sec=_T_sec_load,
             )
             _s6 = _lhx.state_out
             # Recup.hot: 3 → 4  (hot=(1-x)·ṁ, cold=ṁ)
@@ -155,7 +164,7 @@ def run_cycle(config: dict, P_high: float, x: float) -> dict:
 
         # T4_hi: 역전 구간에서 T4_actual > state3.T 가능 (cold가 IM-7 온도에 근접).
         # T4_actual ≤ State6.T ≤ T_IM7 이므로, T4_hi = max(state3.T, T_IM7 + 1K) 로 보장.
-        T4_hi = max(state3.T, lhx_hot["T_inlet"] + 1.0)
+        T4_hi = max(state3.T, _T_sec_load + 1.0)
         T4_lo = 140.0
         if _residual(T4_lo) * _residual(T4_hi) > 0:
             raise ValueError(
@@ -178,13 +187,13 @@ def run_cycle(config: dict, P_high: float, x: float) -> dict:
             state5,
             htc_hot_rated=lhx_hot["htc_rated"],
             area_hot=lhx_hot["area"],
-            m_dot_hot=lhx_hot["m_dot_rated"],
+            m_dot_hot=_m_dot_hot_sec,
             m_dot_hot_rated=lhx_hot["m_dot_rated"],
             htc_cold_rated=lhx_cold["htc_rated"],
             area_cold=lhx_cold["area"],
             m_dot_cold=m_dot,
             m_dot_cold_rated=lhx_cold["m_dot_rated"],
-            T_sec=lhx_hot["T_inlet"],
+            T_sec=_T_sec_load,
         )
         state6 = loadhx_res.state_out
 
@@ -237,7 +246,7 @@ def run_cycle(config: dict, P_high: float, x: float) -> dict:
                         T_sec_in=ac_cold["T_inlet"],
                         T_sec_out=ac_res.extra["T_sec_out"]),
             load = dict(air_in_idx=5, air_out_idx=6,
-                        T_sec_in=lhx_hot["T_inlet"],
+                        T_sec_in=_T_sec_load,
                         T_sec_out=loadhx_res.extra["T_sec_out"]),
         ),
     )
