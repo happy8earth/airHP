@@ -111,9 +111,26 @@ State 2 ─(1-x)→ [Aftercooler] → [Recup.hot] → State 4 ─┐
 
 ---
 ### [ ] 1. Load측 모델링 
-chuck → heater → splitter → hx_load, (1-y)*m_dot_sec → mixer → chuck (target T : 30 degC) 
-                     | y*m_dot_sec_______________________|
+Chuck 출구 → Heater → [Splitter] ─── (1-y)·ṁ_sec ──→ [hx_load 2차측] ──→ \
+                           │                                                  [Mixer] → Chuck 입구
+                           └──── y·ṁ_sec (bypass) ──────────────────────→ /
 
+- Chuck inlet temperature (T_chuck_sec_in)
+→ Mode1: 173.15 K 
+→ Mode2: 303.15 K 
+
+- heat capacity of the Chuck, Chuck duty 
+→ Mode1: Q_chuck = 5 kW (입력변수)
+→ Mode2: Q_chuck = 0 kW
+
+- Heater duty: 
+→ Mode2: T_chuck_sec_in = 303.15가 
+→ Mode2: T_chuck_sec_out = 303.15 K이므로 Q_heater = 0 ✓
+Q_heater = ṁ_sec · Cp_sec · (T_load_sec_in − T_chuck_sec_out)
+
+- Mixer constraint 
+T_chuck_sec_in = (1−y)·T_sec_out + y·T_load_sec_in
+→ y = (T_chuck_sec_in − T_sec_out) / (T_load_sec_in − T_sec_out)
 
 
 ### [ ] 2. 열교환기 압력 손실 모델링 (Pressure Drop)
