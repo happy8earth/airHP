@@ -1,0 +1,17 @@
+metric,value,unit
+cycle,bypass_a_brayton,-
+pressure_ratio,2.400000,-
+P_low,101325.00,Pa
+P_high,243180.00,Pa
+x_bypass,0.501159,-
+Q_cold,3044.1869,W
+Q_aftercooler,22317.9760,W
+W_compressor,43592.6048,W
+W_expander,24316.6469,W
+W_net,19275.9578,W
+COP,0.157927,-
+Q_recuperator,-1023.7045,W
+T_load_sec_out,27.0000,degC
+T_load_sec_in,30.0000,degC
+energy_error,7.12e-04,-
+mass_flow,0.3820,kg/s

@@ -110,6 +110,11 @@ State 2 ─(1-x)→ [Aftercooler] → [Recup.hot] → State 4 ─┐
 - 역산 solver(A-6)에서 `T_sec_out_cycle(x)` 로 직접 사용
 
 ---
+### [ ] 1. Load측 모델링 
+chuck → heater → splitter → hx_load, (1-y)*m_dot_sec → mixer → chuck (target T : 30 degC) 
+                     | y*m_dot_sec_______________________|
+
+
 
 ### [ ] 2. 열교환기 압력 손실 모델링 (Pressure Drop)
 

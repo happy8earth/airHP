@@ -183,6 +183,13 @@ def save_results(cfg: dict, out: dict) -> None:
     perf_path = os.path.join(result_dir, "performance.csv")
     with open(perf_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
+        # hx_load effectiveness (epsilon)
+        hx_load_eps = None
+        for r in out.get("results", []):
+            if r.label == "LoadHX" and r.extra.get("epsilon") is not None:
+                hx_load_eps = r.extra["epsilon"]
+                break
+
         w.writerow(["metric", "value", "unit"])
         w.writerow(["cycle",          out["cycle"],                        "-"])
         w.writerow(["pressure_ratio", f"{out['pressure_ratio']:.6f}",      "-"])
@@ -191,6 +198,8 @@ def save_results(cfg: dict, out: dict) -> None:
         if "x_bypass" in out:
             w.writerow(["x_bypass",   f"{out['x_bypass']:.6f}",           "-"])
         w.writerow(["Q_cold",         f"{out['Q_cold']:.4f}",              "W"])
+        if hx_load_eps is not None:
+            w.writerow(["hx_load_effectiveness", f"{hx_load_eps:.6f}",     "-"])
         if out.get("Q_aftercooler", 0.0) > 0:
             w.writerow(["Q_aftercooler", f"{out['Q_aftercooler']:.4f}",   "W"])
         w.writerow(["W_compressor",   f"{out['W_compressor']:.4f}",        "W"])
