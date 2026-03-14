@@ -178,46 +178,63 @@ Q_cold (공기 사이클 흡열) = Q_heater
 
 ### 7-1. Clean Mode 최적 사이클 최저 온도
 
-#### 핵심 Trade-off
+> **표기**: `T_load_sec_out` = Load HX 2차측(IM-7) 출구온도 = 솔버의 `T_sec_out_target`.
 
-팽창기 출구 온도(`T_exp_out`)를 어디에 설정하느냐에 따라:
+#### W_total의 단조 거동 — 내부 최솟값 없음
 
-| T_exp_out 설정 | W_heater | W_net | Process mode 전환 준비도 |
-|---------------|----------|-------|--------------------------|
-| ≈ +30°C (척 온도 수준) | ≈ 0 | 최소 | 느림 (사이클 재냉각 필요) |
-| ≈ −80°C (공정 조건 유지) | 매우 큼 | 최대 | 즉시 전환 |
-| **최적점** | **최소화** | **균형** | **허용 전환 시간 만족** |
-
-#### 총 소비 전력 최소화 조건
-
+Clean mode (Q_chuck = 0)에서 에너지 균형:
 ```
-W_total = W_net(T_exp_out) + W_heater(T_exp_out)
-        = W_net(T_exp_out) + Q_cold(T_exp_out)    ← Q_chuck = 0
+W_total = W_net + W_heater
+        = W_net + Q_cold          ← W_heater = Q_cold (Q_chuck = 0)
 ```
 
-- `T_exp_out` 하강 → `W_net` 증가 + `Q_cold` 증가 → `W_heater` 증가
-- `T_exp_out` 상승 → `W_net` 감소 + `Q_cold` 감소 → `W_heater` 감소
+`T_load_sec_out` 상승 시 `W_net`과 `Q_cold` **둘 다 단조 감소**:
 
-**물리적 하한**: `T_exp_out` < `T_chuck_in`(30°C) 은 필수. 유효 온도차가 없으면 UA-LMTD 기준 Load HX 열전달 면적이 무한대 요구.
+```
+T_load_sec_out ↑  →  Q_cold ↓  →  W_heater ↓
+                  →  W_net  ↓  (냉각량 감소 → 압축 일 감소)
+                  ∴  W_total 단조 감소
+```
 
-#### 실질적 최적 구간
+극한: `T_load_sec_out → T_chuck_in(30°C)` 이면 `Q_cold → 0`, `W_total → 0`.
+→ **에너지 관점 단독 최적 = 사이클 정지**.
 
-> **T_exp_out ≈ −10°C ~ +10°C** (Clean mode 기준 권장)
+내부 최솟값(unconstrained optimum)은 존재하지 않는다.
 
-근거:
-1. Load HX에서 유효 LMTD 확보에 필요한 최소 온도차(약 10~20 K) 만족
-2. 이 구간에서 `W_heater`는 Process mode 대비 대폭 감소
-3. Warm-up 전환 시 사이클 재냉각 시간이 수분 이내로 관리 가능
+#### 실제 최적: 전환 시간 제약이 하한을 결정 (정성적 논의)
+
+Clean mode에서 `T_load_sec_out`을 높게(사이클을 따뜻하게) 유지할수록 W_total은 감소하지만,
+Process mode 재진입 시 사이클을 −80°C까지 재냉각하는 데 시간이 걸린다.
+
+```
+진짜 최적화 문제 (개념):
+  minimize  W_total
+  subject to  t_transition ≤ t_max    (허용 전환 시간 제약)
+```
+
+→ **최적 T_load_sec_out = 전환 시간 제약을 딱 만족하는 최댓값**
+
+| T_load_sec_out | W_total | t_transition | 비고 |
+|---------------|---------|-------------|------|
+| = T_chuck_in (30°C) | ≈ 0 | 최대 (사이클 재냉각 전체) | 에너지 최적, 전환 느림 |
+| = T_process (−80°C) | 최대 | ≈ 0 (즉시 전환) | 전환 최적, 에너지 낭비 |
+| **= T_opt** | **최소 (제약 만족)** | **= t_max** | **실질 최적** |
+
+> **현재 모델의 한계**: 본 시뮬레이터는 **정상 상태(steady-state)** 모델이므로
+> 열용량(thermal mass) 및 시간 항(time term)이 없다.
+> `t_transition`은 계산 불가 → `T_opt`의 수치적 결정은 현재 모델 범위 밖.
+> 위 표는 정성적 프레임워크로만 사용.
 
 #### 두 모드에 단일 압력비가 비효율적인 이유
 
 | | Process mode | Clean mode |
 |--|-------------|-----------|
-| 필요 T_exp_out | −80°C 이하 | +30°C 근방 |
-| 필요 Q_cold | 5 kW | 0 kW |
+| 필요 T_load_sec_out | −80°C 이하 | 가능한 한 높게 |
+| 필요 Q_cold | 5 kW | 0 kW (최소화) |
 | 적합한 압력비 | 높음 | **낮춰도 됨** |
 
-→ **Clean mode에서는 압력비 자체를 낮추는 것**이 `W_total` 최소화에 가장 직접적.
+→ **Clean mode에서는 압력비를 낮추고 `T_load_sec_out`을 최대한 올리는 것**이 W_total 최소화에 직접적.
+단, 하한은 **허용 전환 시간 `t_max`** 에 의해 결정되며, 이는 현재 모델로 정량화 불가.
 
 ---
 
@@ -237,9 +254,9 @@ W_total = W_net(T_exp_out) + W_heater(T_exp_out)
 ```
 x 증가
   → 팽창기 입구온도(T4m) 상승
-  → 팽창기 출구온도(T_exp_out) 상승
-  → Load HX 공기측 LMTD 감소
-  → Q_cold 감소  →  Q_heater = Q_cold 감소  ✓
+  → 팽창기 출구온도(T_expander_out, 공기측) 상승
+  → Load HX 공기측 입구온도 상승 → LMTD 감소
+  → Q_cold 감소  →  T_load_sec_out 상승,  Q_heater 감소  ✓
 ```
 
 부가 효과: Aftercooler·Recuperator 통과 유량 = `(1−x)·ṁ` 감소 → `W_net` 감소.
@@ -290,12 +307,18 @@ Warm-up을 과도 제어 문제로 정식화:
 
 ---
 
-### 7-3. 연구 확장 방향
+### 7-3. 현재 모델 한계 및 연구 확장 방향
 
-- **N4 후속 연구**: 현재 구현된 정상 상태 2D 스윕(`x`–`Q_heater`)을 과도 구간으로 확장
-  → Warm-up 궤적 최적화(`∫W_heater dt` 최소화) 문제로 발전 가능
-- **압력비 스케줄링**: Process mode / Warm-up / Clean mode 3구간 압력비 최적화
-- **전환 시간 제약**: 허용 전환 시간 `t_switch` 파라미터화 → Pareto front (`t_switch` vs. `E_heater`)
+#### 현재 모델 한계
+- **정상 상태 전용**: 열용량(thermal mass) 없음 → 과도 응답, 전환 시간 계산 불가
+- `T_opt` 수치 결정 불가: `t_transition = f(T_load_sec_out)` 관계를 모델이 제공하지 못함
+- Warm-up 구간의 `∫W_heater dt` 계산 불가 (시간 적분 항 없음)
+
+#### 확장 방향
+- **과도 모델(transient model) 구축**: 유체·벽면 열용량 추가 → `t_transition(T_load_sec_out)` 곡선 도출
+  → 7-1의 `T_opt` 수치화, Pareto front (`t_switch` vs. `E_heater`) 생성 가능
+- **압력비 스케줄링**: Process / Warm-up / Clean 3구간 압력비 최적화 (현재 모델로 각 정상 상태 운전점 계산 가능 → 과도 연결은 추후)
+- **N4 후속**: 현재 구현된 2D 스윕(`x`–`Q_heater`)이 각 정상 상태 운전점의 W_total 지형도를 제공 → 과도 모델과 결합 시 궤적 최적화로 확장 가능
 
 ---
 
