@@ -103,6 +103,12 @@ def solve(config: dict) -> dict:
     T_sec_out_target = config["hx_load"]["T_sec_out_target"]
     P_high = config["P_low"] * config["pressure_ratio"]
 
+    # ── Q_cold = 0 fallback: Q_chuck + Q_heater = 0 → T_sec_out_target = T_chuck_sec_in ──
+    # 증명: Q_cold = Q_chuck + Q_heater = 0
+    #       → h(T_load_sec_in) = h(T_sec_out_target) → T_sec_out_target = T_load_sec_in = T_chuck_sec_in
+    if Q_chuck + Q_heater == 0.0:
+        T_sec_out_target = T_chuck_sec_in
+
     # ── 1단계: T_load_sec_in 역산 (IM-7 h(T), 반복 없음) ────────────────────
     T_chuck_sec_out, T_load_sec_in = compute_T_load_sec_in(config)
 
@@ -115,12 +121,13 @@ def solve(config: dict) -> dict:
 
     dh = h_in - h_target
     if abs(dh) < 1e-6:
-        raise ValueError(
-            f"coupled_solver: T_load_sec_in ({T_load_sec_in:.2f} K) ≈ T_sec_out_target "
-            f"({T_sec_out_target:.2f} K) → 분모 0. Q_heater 또는 T_sec_out_target 확인 필요."
-        )
-
-    y_sec = (h_chuck - h_target) / dh
+        # Q_chuck + Q_heater = 0 fallback: T_load_sec_in = T_sec_out_target = T_chuck_sec_in
+        # → Q_cold = 0, y 는 임의값 (항등식 성립). y=0 으로 설정:
+        #   m_dot_load_sec = m_dot_sec, 온도차 없으므로 hx_load Q=0 자연 성립.
+        #   (y=1 → m_dot_load_sec=0 → hx_load ZeroDivisionError 위험)
+        y_sec = 0.0
+    else:
+        y_sec = (h_chuck - h_target) / dh
 
     if not (0.0 <= y_sec <= 1.0):
         raise ValueError(

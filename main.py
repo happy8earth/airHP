@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from cycle_solver import solve
 from bypass_solver import solve as bypass_solve
 from coupled_solver import solve as coupled_solve
+from load_side_solver import print_load_side_energy_balance
 
 _BYPASS_CYCLES = {"bypass_a_brayton"}
 
@@ -119,6 +120,11 @@ def print_results(cfg: dict, out: dict) -> None:
         print(f"    Q_heater                : {out['Q_heater']/1e3:>8.3f} kW"
               f"  (Q_cold - Q_heater = {(out['Q_cold']-out['Q_heater'])/1e3:+.3f} kW)")
     print(f"    Energy balance error    : {out['energy_error']:.2e}")
+
+    # Load측 에너지 밸런스 상세 검증 (coupled_solver 결과에만)
+    if "y_sec" in out:
+        Q_cold_air = out.get("Q_cold")
+        print_load_side_energy_balance(out, Q_cold_air=Q_cold_air)
 
     # HX 상세 (UA·LMTD 파라미터)
     hx_results = [r for r in out["results"] if r.extra.get("UA") is not None]

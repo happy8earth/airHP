@@ -43,6 +43,142 @@ from properties.im7_properties import _IM7
 
 
 # ─────────────────────────────────────────────
+# 에너지 밸런스 검증 출력
+# ─────────────────────────────────────────────
+
+def print_load_side_energy_balance(result: dict, Q_cold_air: float = None) -> None:
+    """
+    Load측 (IM-7 2차 회로) 에너지 밸런스 검증 출력.
+
+    Splitter/Mixer 전후의 온도·엔탈피·mdot을 표로 출력하고
+    각 노드의 에너지 균형 잔차를 계산합니다.
+
+    Parameters
+    ----------
+    result       : dict  solve_load_side() 또는 coupled_solver.solve() 반환값
+                   필수 키: y, mdot_load_sec, T_chuck_sec_in, T_chuck_sec_out,
+                            T_load_sec_in, T_load_sec_out, Q_chuck, Q_heater
+    Q_cold_air   : float [W]  공기측 Q_dot (hx_load.Q_dot). 지정 시 IM-7 측과 교차 검증.
+    """
+    SEP = "─" * 72
+
+    y              = result["y_sec"] if "y_sec" in result else result["y"]
+    mdot_load      = result["mdot_load_sec"]
+    T_chuck_in     = result["T_chuck_sec_in"]
+    T_chuck_out    = result["T_chuck_sec_out"]
+    T_load_in      = result["T_load_sec_in"]
+    T_load_out     = result["T_load_sec_out"]
+    Q_chuck        = result["Q_chuck"]
+    Q_heater       = result["Q_heater"]
+
+    # m_dot_sec 역산 (y < 1 인 경우)
+    if y < 0.9999:
+        m_dot_sec = mdot_load / (1.0 - y)
+    else:
+        # y ≈ 1 (전량 bypass): mdot_load ≈ 0, m_dot_sec 추정 불가 → Q 값으로 추정
+        # Q_chuck = m_dot_sec * (h_chuck_out - h_chuck_in)
+        dh_chuck = _IM7.h(T_chuck_out) - _IM7.h(T_chuck_in)
+        m_dot_sec = Q_chuck / dh_chuck if abs(dh_chuck) > 1e-9 else float("nan")
+
+    mdot_bypass = y * m_dot_sec
+
+    # 엔탈피 계산
+    h_chuck_in  = _IM7.h(T_chuck_in)
+    h_chuck_out = _IM7.h(T_chuck_out)
+    h_load_in   = _IM7.h(T_load_in)
+    h_load_out  = _IM7.h(T_load_out)
+
+    # ── 열량 계산 ──────────────────────────────────────────────────────────
+    Q_chuck_check  = m_dot_sec * (h_chuck_out - h_chuck_in)       # Chuck 에너지 흡수
+    Q_heater_check = m_dot_sec * (h_load_in  - h_chuck_out)       # Heater 에너지 공급
+    Q_hx_im7       = mdot_load * (h_load_in  - h_load_out)        # IM-7 측 HX 방열
+    Q_loop_total   = Q_chuck + Q_heater                            # IM-7 루프 총 열 흡수
+
+    # Splitter 에너지 균형
+    E_in_split  = m_dot_sec * h_load_in
+    E_out_split = mdot_load * h_load_in + mdot_bypass * h_load_in  # 항등식: 항상 0
+    split_residual = E_in_split - E_out_split                      # 항상 0
+
+    # Mixer 엔탈피 균형
+    E_in_mix_load   = mdot_load   * h_load_out
+    E_in_mix_bypass = mdot_bypass * h_load_in
+    E_out_mix       = m_dot_sec   * h_chuck_in
+    mixer_residual  = (E_in_mix_load + E_in_mix_bypass) - E_out_mix  # [W]
+
+    # IM-7 루프 전체 클로저
+    loop_residual  = Q_hx_im7 - Q_loop_total   # 0 이어야 함
+
+    print()
+    print(SEP)
+    print("  Load측 (IM-7) 에너지 밸런스 검증")
+    print(SEP)
+
+    # ── 노드별 상태표 ──────────────────────────────────────────────────────
+    print()
+    print(f"  {'노드':<22} {'T [degC]':>9} {'h [J/kg]':>12} {'mdot[kg/s]':>11}")
+    print(f"  {'─'*22} {'─'*9} {'─'*12} {'─'*10}")
+
+    def row(label, T_K, h_val, mdot):
+        print(f"  {label:<22} {T_K-273.15:>9.3f} {h_val:>12.2f} {mdot:>10.5f}")
+
+    row("Chuck 입구 (Mixer 출구)",   T_chuck_in,  h_chuck_in,  m_dot_sec)
+    row("Chuck 출구 (Heater 입구)",  T_chuck_out, h_chuck_out, m_dot_sec)
+    row("Heater 출구 = Splitter 입구", T_load_in, h_load_in,   m_dot_sec)
+    print(f"  {'─'*22} {'─'*9} {'─'*12} {'─'*10}")
+    row(f"  └─ hx_load 입구  (1-y)", T_load_in,  h_load_in,  mdot_load)
+    row(f"  └─ bypass 입구   (y)",   T_load_in,  h_load_in,  mdot_bypass)
+    print(f"  {'─'*22} {'─'*9} {'─'*12} {'─'*10}")
+    row(f"  hx_load 출구  → Mixer A", T_load_out, h_load_out, mdot_load)
+    row(f"  bypass 출구   → Mixer B", T_load_in,  h_load_in,  mdot_bypass)
+    print(f"  {'─'*22} {'─'*9} {'─'*12} {'─'*10}")
+    row("Mixer 출구 (Chuck 입구)",    T_chuck_in,  h_chuck_in,  m_dot_sec)
+
+    # ── bypass 분율 ───────────────────────────────────────────────────────
+    print()
+    print(f"  y (2차측 bypass)    = {y:.5f}")
+    print(f"  mdot_sec            = {m_dot_sec:.5f} kg/s")
+    print(f"  mdot_load (hx 통과) = {mdot_load:.5f} kg/s")
+    print(f"  mdot_bypass         = {mdot_bypass:.5f} kg/s")
+
+    # ── 에너지 균형 ───────────────────────────────────────────────────────
+    print()
+    print(f"  {'항목':<36} {'값 [W]':>12}  {'잔차 [W]':>10}")
+    print(f"  {'─'*36} {'─'*12}  {'─'*10}")
+    print(f"  {'Q_chuck  (설정값)':.<36} {Q_chuck:>12.2f}")
+    print(f"  {'Q_chuck  (h(T) 계산값)':.<36} {Q_chuck_check:>12.2f}  {Q_chuck_check - Q_chuck:>+10.4f}")
+    print(f"  {'Q_heater (설정값)':.<36} {Q_heater:>12.2f}")
+    print(f"  {'Q_heater (h(T) 계산값)':.<36} {Q_heater_check:>12.2f}  {Q_heater_check - Q_heater:>+10.4f}")
+    print()
+    print(f"  {'Q_hx_load (IM-7측)':.<36} {Q_hx_im7:>12.2f}")
+    print(f"  {'Q_loop_total (chuck+heater)':.<36} {Q_loop_total:>12.2f}  {loop_residual:>+10.4f}")
+    if Q_cold_air is not None:
+        hx_cross = Q_cold_air - Q_hx_im7
+        print(f"  {'Q_cold (공기측)':.<36} {Q_cold_air:>12.2f}  {hx_cross:>+10.4f}")
+    print()
+    print(f"  {'Splitter 에너지 잔차 [W]':.<36} {split_residual:>+12.4f}  ← 항등식(항상 0)")
+    print(f"  {'Mixer 엔탈피 균형 잔차 [W]':.<36} {mixer_residual:>+12.4f}")
+    print()
+
+    # ── 판정 ──────────────────────────────────────────────────────────────
+    tol_rel = 1e-3   # 0.1% 상대 허용
+    tol_abs = 1.0    # 1 W 절대 허용 (Q≈0 케이스)
+    def _ok(err, ref): return abs(err) < max(abs(ref) * tol_rel, tol_abs)
+    ok_mixer   = _ok(mixer_residual,              Q_hx_im7)
+    ok_loop    = _ok(loop_residual,               Q_loop_total)
+    ok_q_check = _ok(Q_chuck_check  - Q_chuck,   Q_chuck)
+    ok_qh_check = _ok(Q_heater_check - Q_heater, Q_heater)
+
+    print(f"  [{'OK' if ok_q_check  else 'NG'}] Chuck 에너지 (설정값 vs h(T) 계산)")
+    print(f"  [{'OK' if ok_qh_check else 'NG'}] Heater 에너지 (설정값 vs h(T) 계산)")
+    print(f"  [{'OK' if ok_mixer    else 'NG'}] Mixer 엔탈피 균형 (잔차 < 0.1%)")
+    print(f"  [{'OK' if ok_loop     else 'NG'}] IM-7 루프 열균형 (Q_hx = Q_chuck+Q_heater)")
+    if Q_cold_air is not None:
+        ok_hx = abs(hx_cross) / max(abs(Q_cold_air), 1.0) < tol_rel
+        print(f"  [{'OK' if ok_hx else 'NG'}] HX 열균형 (공기측 vs IM-7측)")
+    print(SEP)
+
+
+# ─────────────────────────────────────────────
 # 내부 헬퍼: IM-7 h(T) 역산
 # ─────────────────────────────────────────────
 
